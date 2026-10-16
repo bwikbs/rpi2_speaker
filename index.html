@@ -25,7 +25,8 @@
   <button onclick="post('/api/pause')">⏯</button>
   <button onclick="post('/api/next')">⏭</button>
   <button onclick="post('/api/stop')">⏹</button>
-  🔊 <input type="range" id="vol" min="0" max="100" onchange="post('/api/volume',{volume:this.value})">
+  <button id="mute" onclick="post('/api/mute')">🔊</button>
+  <input type="range" id="vol" min="0" max="100" onchange="post('/api/volume',{volume:this.value})">
 </p>
 <p>출력: <select id="dev" onchange="post('/api/device',{device:this.value})"></select></p>
 <form onsubmit="post('/api/play',{url:url.value});return false">
@@ -60,6 +61,7 @@ function show(s) {
   if (!('idle' in s)) return;
   now.textContent = s.idle ? '정지됨' : (s.paused ? '⏸ ' : '▶ ') + s.title + ' ' + fmt(s.time) + '/' + fmt(s.duration);
   if (document.activeElement !== vol) vol.value = s.volume;
+  mute.textContent = s.mute ? '🔇' : '🔊';
   if (s.devices && dev.length !== s.devices.length) {
     dev.innerHTML = '';
     for (const d of s.devices) { const o = document.createElement('option'); o.value = d.name; o.textContent = d.description; dev.appendChild(o); }

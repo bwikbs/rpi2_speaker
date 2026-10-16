@@ -39,6 +39,7 @@ NAS 등 네트워크 공유는 `/mnt/music`에 마운트한다. 예 (`/etc/fstab
 | POST | `/api/move` | `{"from": n, "to": m}` m은 이동 후 위치 |
 | POST | `/api/clear` | |
 | POST | `/api/pause` | (토글) |
+| POST | `/api/mute` | (토글) |
 | POST | `/api/stop` | |
 | POST | `/api/volume` | `{"volume": 0-100}` |
 | POST | `/api/device` | `{"device": "<audio-device-list의 name>"}` |

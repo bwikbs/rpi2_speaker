@@ -107,6 +107,7 @@ def status():
         "paused": prop("pause", True),
         "idle": prop("idle-active", True),
         "volume": prop("volume", 0),
+        "mute": prop("mute", False),
         "device": prop("audio-device", "auto"),
         "devices": prop("audio-device-list", []),
         "queue": [{"title": e.get("title") or e["filename"].replace(str(MUSIC_DIR) + "/", ""),
@@ -160,6 +161,8 @@ class Handler(BaseHTTPRequestHandler):
                 mpv_cmd("playlist-clear")
             elif self.path == "/api/pause":
                 mpv_cmd("cycle", "pause")
+            elif self.path == "/api/mute":
+                mpv_cmd("cycle", "mute")
             elif self.path == "/api/stop":
                 mpv_cmd("stop")
             elif self.path == "/api/volume":
