@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>rpi2 speaker</title>
+<style>
+  body { font-family: sans-serif; max-width: 600px; margin: 16px auto; padding: 0 16px; }
+  input[type=url] { width: 100%; box-sizing: border-box; padding: 8px; font-size: 16px; }
+  button { padding: 8px 16px; font-size: 16px; margin: 4px 4px 4px 0; }
+  #files li { cursor: pointer; padding: 4px 0; }
+  #files li:hover { text-decoration: underline; }
+  #now { background: #eee; padding: 8px; border-radius: 4px; word-break: break-all; }
+</style>
+</head>
+<body>
+<h2>rpi2 speaker</h2>
+<div id="now">정지됨</div>
+<p>
+  <button onclick="post('/api/pause')">⏯</button>
+  <button onclick="post('/api/stop')">⏹</button>
+  🔊 <input type="range" id="vol" min="0" max="100" onchange="post('/api/volume',{volume:this.value})">
+</p>
+<form onsubmit="post('/api/play',{url:url.value});return false">
+  <input type="url" id="url" placeholder="YouTube / YouTube Music / 스트림 URL" required>
+  <button>재생</button>
+</form>
+<h3>로컬 파일</h3>
+<ul id="files"></ul>
+<script>
+async function post(p, body) {
+  const r = await fetch(p, {method: 'POST', body: JSON.stringify(body || {})});
+  show(await r.json());
+}
+function fmt(s) { s = Math.floor(s || 0); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); }
+function show(s) {
+  if (s.error) { now.textContent = '오류: ' + s.error; return; }
+  now.textContent = s.idle ? '정지됨' : (s.paused ? '⏸ ' : '▶ ') + s.title + ' ' + fmt(s.time) + '/' + fmt(s.duration);
+  if (document.activeElement !== vol) vol.value = s.volume;
+}
+fetch('/api/files').then(r => r.json()).then(fs => {
+  if (!fs.length) files.innerHTML = '<li>없음</li>';
+  for (const f of fs) { const li = document.createElement('li'); li.textContent = f; li.onclick = () => post('/api/play', {url: f}); files.appendChild(li); }
+});
+setInterval(() => fetch('/api/status').then(r => r.json()).then(show), 2000);
+</script>
+</body>
+</html>
