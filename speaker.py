@@ -5,6 +5,7 @@ import os
 import socket
 import subprocess
 import sys
+import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -15,7 +16,8 @@ SOCK = os.environ.get("MPV_SOCK", "/tmp/rpi2_speaker.sock")
 UPDATE_CMD = ["pip3", "install", "-U", "yt-dlp", "--break-system-packages"]
 AUDIO_EXT = {".mp3", ".flac", ".m4a", ".wav", ".ogg", ".opus", ".aac"}
 HTML = (Path(__file__).parent / "index.html").read_bytes()
-STATE = Path(__file__).parent / "state.json"  # audio device + volume, survives reboot
+STATE = Path(__file__).parent / "state.json"  # audio device + volume + queue, survives reboot
+WATCH_DIR = Path(__file__).parent / "watch_later"  # per-file resume position (mpv native)
 
 
 def load_state():
@@ -87,6 +89,15 @@ def restore_queue(st):
     if st.get("pos", -1) >= 0 and st.get("queue"):
         mpv_cmd("set_property", "pause", True)
         mpv_cmd("playlist-play-index", st["pos"])
+
+
+def checkpoint():
+    while True:
+        time.sleep(10)
+        try:
+            mpv_cmd("write-watch-later-config")
+        except (RuntimeError, OSError):
+            pass
 
 
 def status():
@@ -184,6 +195,8 @@ def start_mpv():
     proc = subprocess.Popen(
         ["mpv", "--idle", "--no-video", "--no-terminal", "--ytdl-format=bestaudio/best",
          f"--input-ipc-server={SOCK}",
+         # resume position per file; written on quit and every 10s (see checkpoint)
+         "--save-position-on-quit", "--watch-later-options=start", f"--watch-later-dir={WATCH_DIR}",
          f"--audio-device={st.get('device', 'auto')}", f"--volume={st.get('volume', 70)}"]
     )
     for _ in range(50):
@@ -197,6 +210,7 @@ if __name__ == "__main__":
     mpv = start_mpv()
     try:
         restore_queue(load_state())
+        threading.Thread(target=checkpoint, daemon=True).start()
         print(f"listening on :{PORT}, music dir {MUSIC_DIR}")
         ThreadingHTTPServer(("", PORT), Handler).serve_forever()
     finally:
