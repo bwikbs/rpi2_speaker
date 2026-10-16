@@ -80,6 +80,8 @@ def status():
         "volume": prop("volume", 0),
         "device": prop("audio-device", "auto"),
         "devices": prop("audio-device-list", []),
+        "queue": [{"title": e.get("title") or e["filename"].replace(str(MUSIC_DIR) + "/", ""),
+                   "current": e.get("current", False)} for e in prop("playlist", [])],
         "time": prop("time-pos", 0),
         "duration": prop("duration", 0),
     }
@@ -115,6 +117,16 @@ class Handler(BaseHTTPRequestHandler):
             if self.path == "/api/play":
                 mpv_cmd("loadfile", resolve(body["url"]))
                 mpv_cmd("set_property", "pause", False)
+            elif self.path == "/api/queue":
+                mpv_cmd("loadfile", resolve(body["url"]), "append-play")
+            elif self.path == "/api/next":
+                mpv_cmd("playlist-next", "force")
+            elif self.path == "/api/prev":
+                mpv_cmd("playlist-prev", "force")
+            elif self.path == "/api/remove":
+                mpv_cmd("playlist-remove", int(body["index"]))
+            elif self.path == "/api/clear":
+                mpv_cmd("playlist-clear")
             elif self.path == "/api/pause":
                 mpv_cmd("cycle", "pause")
             elif self.path == "/api/stop":

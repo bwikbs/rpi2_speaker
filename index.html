@@ -8,8 +8,12 @@
   body { font-family: sans-serif; max-width: 600px; margin: 16px auto; padding: 0 16px; }
   input[type=url] { width: 100%; box-sizing: border-box; padding: 8px; font-size: 16px; }
   button { padding: 8px 16px; font-size: 16px; margin: 4px 4px 4px 0; }
-  #files li { cursor: pointer; padding: 4px 0; }
+  #files li, #queue li { padding: 4px 0; }
+  #files li { cursor: pointer; }
   #files li:hover { text-decoration: underline; }
+  #queue li.cur { font-weight: bold; }
+  #queue button { padding: 0 6px; font-size: 12px; }
+  #files li button { margin-left: 8px; }
   #now { background: #eee; padding: 8px; border-radius: 4px; word-break: break-all; }
 </style>
 </head>
@@ -17,7 +21,9 @@
 <h2>rpi2 speaker</h2>
 <div id="now">정지됨</div>
 <p>
+  <button onclick="post('/api/prev')">⏮</button>
   <button onclick="post('/api/pause')">⏯</button>
+  <button onclick="post('/api/next')">⏭</button>
   <button onclick="post('/api/stop')">⏹</button>
   🔊 <input type="range" id="vol" min="0" max="100" onchange="post('/api/volume',{volume:this.value})">
 </p>
@@ -25,7 +31,10 @@
 <form onsubmit="post('/api/play',{url:url.value});return false">
   <input type="url" id="url" placeholder="YouTube / YouTube Music / 스트림 URL" required>
   <button>재생</button>
+  <button type="button" onclick="url.reportValidity()&&post('/api/queue',{url:url.value})">큐 추가</button>
 </form>
+<h3>큐 <button onclick="post('/api/clear')">비우기</button></h3>
+<ol id="queue"></ol>
 <h3>시스템</h3>
 <p>
   <button id="upd" onclick="update()">yt-dlp 업데이트</button>
@@ -56,10 +65,25 @@ function show(s) {
     for (const d of s.devices) { const o = document.createElement('option'); o.value = d.name; o.textContent = d.description; dev.appendChild(o); }
   }
   if (document.activeElement !== dev) dev.value = s.device;
+  const key = JSON.stringify(s.queue);
+  if (key !== queue.dataset.key) {
+    queue.dataset.key = key; queue.innerHTML = '';
+    s.queue.forEach((q, i) => {
+      const li = document.createElement('li'); li.className = q.current ? 'cur' : '';
+      li.textContent = q.title + ' ';
+      const b = document.createElement('button'); b.textContent = '✕'; b.onclick = () => post('/api/remove', {index: i});
+      li.appendChild(b); queue.appendChild(li);
+    });
+  }
 }
 fetch('/api/files').then(r => r.json()).then(fs => {
   if (!fs.length) files.innerHTML = '<li>없음</li>';
-  for (const f of fs) { const li = document.createElement('li'); li.textContent = f; li.onclick = () => post('/api/play', {url: f}); files.appendChild(li); }
+  for (const f of fs) {
+    const li = document.createElement('li'); li.textContent = f; li.onclick = () => post('/api/play', {url: f});
+    const b = document.createElement('button'); b.textContent = '+큐';
+    b.onclick = e => { e.stopPropagation(); post('/api/queue', {url: f}); };
+    li.appendChild(b); files.appendChild(li);
+  }
 });
 setInterval(() => fetch('/api/status').then(r => r.json()).then(show), 2000);
 </script>
