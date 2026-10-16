@@ -161,6 +161,8 @@ class Handler(BaseHTTPRequestHandler):
                 mpv_cmd("playlist-clear")
             elif self.path == "/api/pause":
                 mpv_cmd("cycle", "pause")
+            elif self.path == "/api/seek":
+                mpv_cmd("seek", float(body["time"]), "absolute")
             elif self.path == "/api/mute":
                 mpv_cmd("cycle", "mute")
             elif self.path == "/api/stop":

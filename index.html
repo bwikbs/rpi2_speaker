@@ -20,6 +20,7 @@
 <body>
 <h2>rpi2 speaker</h2>
 <div id="now">정지됨</div>
+<input type="range" id="pos" min="0" max="0" step="1" style="width:100%" onchange="post('/api/seek',{time:this.value})">
 <p>
   <button onclick="post('/api/prev')">⏮</button>
   <button onclick="post('/api/pause')">⏯</button>
@@ -60,6 +61,8 @@ function show(s) {
   if (s.error) { now.textContent = '오류: ' + s.error; return; }
   if (!('idle' in s)) return;
   now.textContent = s.idle ? '정지됨' : (s.paused ? '⏸ ' : '▶ ') + s.title + ' ' + fmt(s.time) + '/' + fmt(s.duration);
+  pos.max = Math.floor(s.duration || 0); pos.disabled = !pos.max;
+  if (document.activeElement !== pos) pos.value = Math.floor(s.time || 0);
   if (document.activeElement !== vol) vol.value = s.volume;
   mute.textContent = s.mute ? '🔇' : '🔊';
   if (s.devices && dev.length !== s.devices.length) {
