@@ -31,3 +31,12 @@ assert speaker.move_args(2, 0) == (2, 0)
 assert speaker.move_args(0, 2) == (0, 3)
 assert speaker.move_args(1, 1) == (1, 1)
 print("ok move")
+
+# restore_queue: replay saved entries into a fake mpv_cmd
+calls = []
+speaker.mpv_cmd = lambda *a: calls.append(a)
+speaker.restore_queue({"queue": ["/m/a.mp3", "https://y/x"], "pos": 1})
+assert calls == [("loadfile", "/m/a.mp3", "append"), ("loadfile", "https://y/x", "append"),
+                 ("set_property", "pause", True), ("playlist-play-index", 1)], calls
+calls.clear(); speaker.restore_queue({}); assert calls == []
+print("ok restore")

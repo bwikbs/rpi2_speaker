@@ -76,6 +76,19 @@ def move_args(src, dst):
     return (src, dst + 1 if dst > src else dst)
 
 
+def save_queue():
+    save_state(queue=[e["filename"] for e in prop("playlist", [])], pos=prop("playlist-pos", -1))
+
+
+def restore_queue(st):
+    """Reload the saved playlist paused so a reboot doesn't start blasting audio."""
+    for f in st.get("queue", []):
+        mpv_cmd("loadfile", f, "append")
+    if st.get("pos", -1) >= 0 and st.get("queue"):
+        mpv_cmd("set_property", "pause", True)
+        mpv_cmd("playlist-play-index", st["pos"])
+
+
 def status():
     return {
         "title": prop("media-title", ""),
@@ -155,6 +168,7 @@ class Handler(BaseHTTPRequestHandler):
                 return
             else:
                 return self._json({"error": "not found"}, 404)
+            save_queue()
             self._json(status())
         except (KeyError, ValueError, RuntimeError, OSError, subprocess.TimeoutExpired) as e:
             self._json({"error": str(e)}, 400)
@@ -182,6 +196,7 @@ def start_mpv():
 if __name__ == "__main__":
     mpv = start_mpv()
     try:
+        restore_queue(load_state())
         print(f"listening on :{PORT}, music dir {MUSIC_DIR}")
         ThreadingHTTPServer(("", PORT), Handler).serve_forever()
     finally:
