@@ -13,6 +13,12 @@ sudo apt-get install -y --no-install-recommends mpv ffmpeg python3 python3-pip
 sudo pip3 install -U yt-dlp --break-system-packages
 sudo mkdir -p "$MUSIC_DIR"
 
+# let the web UI reboot and update yt-dlp without a password
+printf '%s ALL=(root) NOPASSWD: /usr/bin/systemctl reboot, /usr/bin/pip3 install -U yt-dlp --break-system-packages\n' "$USER_NAME" \
+  | sudo tee /etc/sudoers.d/rpi2-speaker >/dev/null
+sudo chmod 440 /etc/sudoers.d/rpi2-speaker
+sudo visudo -cf /etc/sudoers.d/rpi2-speaker
+
 sudo tee /etc/systemd/system/rpi2-speaker.service >/dev/null <<UNIT
 [Unit]
 Description=rpi2 network speaker

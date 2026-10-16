@@ -26,6 +26,12 @@
   <input type="url" id="url" placeholder="YouTube / YouTube Music / 스트림 URL" required>
   <button>재생</button>
 </form>
+<h3>시스템</h3>
+<p>
+  <button id="upd" onclick="update()">yt-dlp 업데이트</button>
+  <button onclick="if(confirm('재부팅할까요?'))post('/api/reboot')">재부팅</button>
+  <span id="sys"></span>
+</p>
 <h3>로컬 파일</h3>
 <ul id="files"></ul>
 <script>
@@ -33,9 +39,16 @@ async function post(p, body) {
   const r = await fetch(p, {method: 'POST', body: JSON.stringify(body || {})});
   show(await r.json());
 }
+async function update() {
+  upd.disabled = true; sys.textContent = '업데이트 중... (수 분 소요)';
+  const r = await (await fetch('/api/update', {method: 'POST', body: '{}'})).json();
+  sys.textContent = r.ok ? 'yt-dlp ' + r.version : '실패: ' + (r.error || r.log);
+  upd.disabled = false;
+}
 function fmt(s) { s = Math.floor(s || 0); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); }
 function show(s) {
   if (s.error) { now.textContent = '오류: ' + s.error; return; }
+  if (!('idle' in s)) return;
   now.textContent = s.idle ? '정지됨' : (s.paused ? '⏸ ' : '▶ ') + s.title + ' ' + fmt(s.time) + '/' + fmt(s.duration);
   if (document.activeElement !== vol) vol.value = s.volume;
   if (s.devices && dev.length !== s.devices.length) {

@@ -12,6 +12,7 @@ from pathlib import Path
 MUSIC_DIR = Path(os.environ.get("MUSIC_DIR", "/mnt/music"))
 PORT = int(os.environ.get("PORT", "8080"))
 SOCK = os.environ.get("MPV_SOCK", "/tmp/rpi2_speaker.sock")
+UPDATE_CMD = ["pip3", "install", "-U", "yt-dlp", "--break-system-packages"]
 AUDIO_EXT = {".mp3", ".flac", ".m4a", ".wav", ".ogg", ".opus", ".aac"}
 HTML = (Path(__file__).parent / "index.html").read_bytes()
 STATE = Path(__file__).parent / "state.json"  # audio device + volume, survives reboot
@@ -125,10 +126,18 @@ class Handler(BaseHTTPRequestHandler):
             elif self.path == "/api/device":
                 mpv_cmd("set_property", "audio-device", body["device"])
                 save_state(device=body["device"])
+            elif self.path == "/api/update":  # sudoers rule from install.sh; takes minutes on a Pi 2
+                r = subprocess.run(["sudo", "-n"] + UPDATE_CMD, capture_output=True, text=True, timeout=900)
+                ver = subprocess.run(["yt-dlp", "--version"], capture_output=True, text=True).stdout.strip()
+                return self._json({"ok": r.returncode == 0, "version": ver, "log": (r.stdout + r.stderr)[-2000:]})
+            elif self.path == "/api/reboot":
+                self._json({"ok": True})
+                subprocess.run(["sudo", "-n", "systemctl", "reboot"])
+                return
             else:
                 return self._json({"error": "not found"}, 404)
             self._json(status())
-        except (KeyError, ValueError, RuntimeError, OSError) as e:
+        except (KeyError, ValueError, RuntimeError, OSError, subprocess.TimeoutExpired) as e:
             self._json({"error": str(e)}, 400)
 
     def log_message(self, *a):

@@ -37,6 +37,10 @@ NAS 등 네트워크 공유는 `/mnt/music`에 마운트한다. 예 (`/etc/fstab
 | POST | `/api/stop` | |
 | POST | `/api/volume` | `{"volume": 0-100}` |
 | POST | `/api/device` | `{"device": "<audio-device-list의 name>"}` |
+| POST | `/api/update` | yt-dlp 최신판 설치 (수 분 소요) |
+| POST | `/api/reboot` | |
+
+재부팅·업데이트는 `install.sh`가 `/etc/sudoers.d/rpi2-speaker`에 등록한 두 명령에 한해 비밀번호 없이 sudo로 실행된다.
 
 오디오 출력 장치(HDMI/3.5mm/USB DAC)와 볼륨은 웹 UI에서 선택하며 `state.json`에 저장되어 재부팅 후에도 유지된다. 모니터·키보드 없이 동작한다.
 
