@@ -36,6 +36,9 @@ NAS 등 네트워크 공유는 `/mnt/music`에 마운트한다. 예 (`/etc/fstab
 | POST | `/api/pause` | (토글) |
 | POST | `/api/stop` | |
 | POST | `/api/volume` | `{"volume": 0-100}` |
+| POST | `/api/device` | `{"device": "<audio-device-list의 name>"}` |
+
+오디오 출력 장치(HDMI/3.5mm/USB DAC)와 볼륨은 웹 UI에서 선택하며 `state.json`에 저장되어 재부팅 후에도 유지된다. 모니터·키보드 없이 동작한다.
 
 ## 테스트
 

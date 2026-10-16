@@ -21,6 +21,7 @@
   <button onclick="post('/api/stop')">⏹</button>
   🔊 <input type="range" id="vol" min="0" max="100" onchange="post('/api/volume',{volume:this.value})">
 </p>
+<p>출력: <select id="dev" onchange="post('/api/device',{device:this.value})"></select></p>
 <form onsubmit="post('/api/play',{url:url.value});return false">
   <input type="url" id="url" placeholder="YouTube / YouTube Music / 스트림 URL" required>
   <button>재생</button>
@@ -37,6 +38,11 @@ function show(s) {
   if (s.error) { now.textContent = '오류: ' + s.error; return; }
   now.textContent = s.idle ? '정지됨' : (s.paused ? '⏸ ' : '▶ ') + s.title + ' ' + fmt(s.time) + '/' + fmt(s.duration);
   if (document.activeElement !== vol) vol.value = s.volume;
+  if (s.devices && dev.length !== s.devices.length) {
+    dev.innerHTML = '';
+    for (const d of s.devices) { const o = document.createElement('option'); o.value = d.name; o.textContent = d.description; dev.appendChild(o); }
+  }
+  if (document.activeElement !== dev) dev.value = s.device;
 }
 fetch('/api/files').then(r => r.json()).then(fs => {
   if (!fs.length) files.innerHTML = '<li>없음</li>';

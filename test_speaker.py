@@ -18,3 +18,11 @@ with tempfile.TemporaryDirectory() as d:
     except ValueError:
         pass
 print("ok")
+
+with tempfile.TemporaryDirectory() as d:
+    speaker.STATE = Path(d) / "state.json"
+    assert speaker.load_state() == {}
+    speaker.save_state(volume=30)
+    speaker.save_state(device="alsa/hdmi")
+    assert speaker.load_state() == {"volume": 30, "device": "alsa/hdmi"}
+print("ok state")

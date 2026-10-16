@@ -14,6 +14,18 @@ PORT = int(os.environ.get("PORT", "8080"))
 SOCK = os.environ.get("MPV_SOCK", "/tmp/rpi2_speaker.sock")
 AUDIO_EXT = {".mp3", ".flac", ".m4a", ".wav", ".ogg", ".opus", ".aac"}
 HTML = (Path(__file__).parent / "index.html").read_bytes()
+STATE = Path(__file__).parent / "state.json"  # audio device + volume, survives reboot
+
+
+def load_state():
+    try:
+        return json.loads(STATE.read_text())
+    except (OSError, ValueError):
+        return {}
+
+
+def save_state(**kv):
+    STATE.write_text(json.dumps({**load_state(), **kv}))
 
 
 def mpv_cmd(*args):
@@ -65,6 +77,8 @@ def status():
         "paused": prop("pause", True),
         "idle": prop("idle-active", True),
         "volume": prop("volume", 0),
+        "device": prop("audio-device", "auto"),
+        "devices": prop("audio-device-list", []),
         "time": prop("time-pos", 0),
         "duration": prop("duration", 0),
     }
@@ -105,7 +119,12 @@ class Handler(BaseHTTPRequestHandler):
             elif self.path == "/api/stop":
                 mpv_cmd("stop")
             elif self.path == "/api/volume":
-                mpv_cmd("set_property", "volume", max(0, min(100, int(body["volume"]))))
+                vol = max(0, min(100, int(body["volume"])))
+                mpv_cmd("set_property", "volume", vol)
+                save_state(volume=vol)
+            elif self.path == "/api/device":
+                mpv_cmd("set_property", "audio-device", body["device"])
+                save_state(device=body["device"])
             else:
                 return self._json({"error": "not found"}, 404)
             self._json(status())
@@ -119,9 +138,11 @@ class Handler(BaseHTTPRequestHandler):
 def start_mpv():
     if os.path.exists(SOCK):
         os.unlink(SOCK)
+    st = load_state()
     proc = subprocess.Popen(
         ["mpv", "--idle", "--no-video", "--no-terminal", "--ytdl-format=bestaudio/best",
-         f"--input-ipc-server={SOCK}"]
+         f"--input-ipc-server={SOCK}",
+         f"--audio-device={st.get('device', 'auto')}", f"--volume={st.get('volume', 70)}"]
     )
     for _ in range(50):
         if os.path.exists(SOCK):
