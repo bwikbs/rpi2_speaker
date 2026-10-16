@@ -71,6 +71,11 @@ def resolve(url):
     return str(p)
 
 
+def move_args(src, dst):
+    """mpv playlist-move's 2nd arg is the entry to insert before, so moving down needs dst+1."""
+    return (src, dst + 1 if dst > src else dst)
+
+
 def status():
     return {
         "title": prop("media-title", ""),
@@ -125,6 +130,8 @@ class Handler(BaseHTTPRequestHandler):
                 mpv_cmd("playlist-prev", "force")
             elif self.path == "/api/remove":
                 mpv_cmd("playlist-remove", int(body["index"]))
+            elif self.path == "/api/move":
+                mpv_cmd("playlist-move", *move_args(int(body["from"]), int(body["to"])))
             elif self.path == "/api/clear":
                 mpv_cmd("playlist-clear")
             elif self.path == "/api/pause":

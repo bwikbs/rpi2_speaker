@@ -26,3 +26,8 @@ with tempfile.TemporaryDirectory() as d:
     speaker.save_state(device="alsa/hdmi")
     assert speaker.load_state() == {"volume": 30, "device": "alsa/hdmi"}
 print("ok state")
+
+assert speaker.move_args(2, 0) == (2, 0)
+assert speaker.move_args(0, 2) == (0, 3)
+assert speaker.move_args(1, 1) == (1, 1)
+print("ok move")

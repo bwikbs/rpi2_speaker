@@ -71,8 +71,14 @@ function show(s) {
     s.queue.forEach((q, i) => {
       const li = document.createElement('li'); li.className = q.current ? 'cur' : '';
       li.textContent = q.title + ' ';
-      const b = document.createElement('button'); b.textContent = '✕'; b.onclick = () => post('/api/remove', {index: i});
-      li.appendChild(b); queue.appendChild(li);
+      for (const [t, f] of [['▲', () => post('/api/move', {from: i, to: i - 1})],
+                            ['▼', () => post('/api/move', {from: i, to: i + 1})],
+                            ['✕', () => post('/api/remove', {index: i})]]) {
+        const b = document.createElement('button'); b.textContent = t; b.onclick = f;
+        b.disabled = (t === '▲' && i === 0) || (t === '▼' && i === s.queue.length - 1);
+        li.appendChild(b);
+      }
+      queue.appendChild(li);
     });
   }
 }

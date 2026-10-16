@@ -36,6 +36,7 @@ NAS 등 네트워크 공유는 `/mnt/music`에 마운트한다. 예 (`/etc/fstab
 | POST | `/api/queue` | `{"url": ...}` 큐 끝에 추가 (정지 상태면 바로 재생) |
 | POST | `/api/next` / `/api/prev` | |
 | POST | `/api/remove` | `{"index": n}` |
+| POST | `/api/move` | `{"from": n, "to": m}` m은 이동 후 위치 |
 | POST | `/api/clear` | |
 | POST | `/api/pause` | (토글) |
 | POST | `/api/stop` | |
