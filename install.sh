@@ -40,7 +40,8 @@ WantedBy=multi-user.target
 UNIT
 
 sudo systemctl daemon-reload
-sudo systemctl enable --now rpi2-speaker
+sudo systemctl enable rpi2-speaker
+sudo systemctl restart rpi2-speaker  # also picks up unit changes on re-run
 sleep 2
 sudo systemctl --no-pager status rpi2-speaker | head -5
 echo "open http://$(hostname -I | cut -d' ' -f1)$([ "$PORT" = 80 ] || echo ":$PORT")"
