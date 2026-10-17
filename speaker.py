@@ -18,6 +18,7 @@ AUDIO_EXT = {".mp3", ".flac", ".m4a", ".wav", ".ogg", ".opus", ".aac"}
 HTML = (Path(__file__).parent / "index.html").read_bytes()
 STATE = Path(__file__).parent / "state.json"  # audio device + volume + queue, survives reboot
 WATCH_DIR = Path(__file__).parent / "watch_later"  # per-file resume position (mpv native)
+STATE_LOCK = threading.Lock()  # HTTP handlers run in threads; serialize read-modify-write of STATE
 
 
 def load_state():
@@ -28,19 +29,36 @@ def load_state():
 
 
 def save_state(**kv):
-    STATE.write_text(json.dumps({**load_state(), **kv}))
+    """Atomic replace: a Pi losing power mid-write must not leave a truncated state.json."""
+    with STATE_LOCK:
+        tmp = STATE.with_suffix(".tmp")
+        tmp.write_text(json.dumps({**load_state(), **kv}))
+        os.replace(tmp, STATE)
+
+
+def read_reply(s, req_id):
+    """mpv broadcasts events to every client, so skip lines until our request_id comes back."""
+    buf = b""
+    while True:
+        while b"\n" in buf:
+            line, buf = buf.split(b"\n", 1)
+            msg = json.loads(line)
+            if msg.get("request_id") == req_id:
+                return msg
+        chunk = s.recv(4096)
+        if not chunk:
+            raise ConnectionError("mpv closed IPC socket")
+        buf += chunk
 
 
 def mpv_cmd(*args):
     """Send one command over mpv JSON IPC and return its 'data' field."""
+    req_id = 1  # one connection per command, so any fixed id is unique
     with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as s:
         s.settimeout(3)
         s.connect(SOCK)
-        s.sendall(json.dumps({"command": list(args)}).encode() + b"\n")
-        buf = b""
-        while b"\n" not in buf:
-            buf += s.recv(4096)
-    reply = json.loads(buf.split(b"\n")[0])
+        s.sendall(json.dumps({"command": list(args), "request_id": req_id}).encode() + b"\n")
+        reply = read_reply(s, req_id)
     if reply.get("error") != "success":
         raise RuntimeError(reply.get("error"))
     return reply.get("data")
@@ -49,7 +67,7 @@ def mpv_cmd(*args):
 def prop(name, default=None):
     try:
         return mpv_cmd("get_property", name)
-    except RuntimeError:
+    except (RuntimeError, OSError):
         return default
 
 
@@ -98,6 +116,13 @@ def checkpoint():
             mpv_cmd("write-watch-later-config")
         except (RuntimeError, OSError):
             pass
+
+
+def watchdog(proc):
+    """If mpv dies, exit so systemd (Restart=always) brings both back with saved state."""
+    proc.wait()
+    print(f"mpv exited ({proc.returncode}), restarting service", flush=True)
+    os._exit(1)
 
 
 def status():
@@ -216,6 +241,7 @@ if __name__ == "__main__":
     try:
         restore_queue(load_state())
         threading.Thread(target=checkpoint, daemon=True).start()
+        threading.Thread(target=watchdog, args=(mpv,), daemon=True).start()
         print(f"listening on :{PORT}, music dir {MUSIC_DIR}")
         ThreadingHTTPServer(("", PORT), Handler).serve_forever()
     finally:

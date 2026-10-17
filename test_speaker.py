@@ -25,12 +25,27 @@ with tempfile.TemporaryDirectory() as d:
     speaker.save_state(volume=30)
     speaker.save_state(device="alsa/hdmi")
     assert speaker.load_state() == {"volume": 30, "device": "alsa/hdmi"}
+    assert not speaker.STATE.with_suffix(".tmp").exists()
 print("ok state")
 
 assert speaker.move_args(2, 0) == (2, 0)
 assert speaker.move_args(0, 2) == (0, 3)
 assert speaker.move_args(1, 1) == (1, 1)
 print("ok move")
+
+# read_reply: skip broadcast events, fail instead of spinning when mpv hangs up
+import socket
+a, b = socket.socketpair()
+b.sendall(b'{"event":"start-file"}\n{"request_id":1,"error":"success","data":5}\n')
+assert speaker.read_reply(a, 1)["data"] == 5
+b.sendall(b'{"event":"idle"}\n'); b.close()
+try:
+    speaker.read_reply(a, 1)
+    assert False, "EOF not detected"
+except ConnectionError:
+    pass
+a.close()
+print("ok ipc")
 
 # restore_queue: replay saved entries into a fake mpv_cmd
 calls = []
