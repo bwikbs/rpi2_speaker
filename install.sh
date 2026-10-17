@@ -5,7 +5,7 @@ set -eu
 DIR=$(cd "$(dirname "$0")" && pwd)
 USER_NAME=${SUDO_USER:-$(id -un)}
 MUSIC_DIR=${MUSIC_DIR:-/mnt/music}
-PORT=${PORT:-8080}
+PORT=${PORT:-80}
 
 sudo apt-get update
 sudo apt-get install -y --no-install-recommends mpv ffmpeg python3 python3-pip
@@ -29,6 +29,8 @@ Wants=network-online.target
 User=$USER_NAME
 Environment=MUSIC_DIR=$MUSIC_DIR
 Environment=PORT=$PORT
+# bind ports below 1024 (default 80) without running as root
+AmbientCapabilities=CAP_NET_BIND_SERVICE
 ExecStart=/usr/bin/python3 $DIR/speaker.py
 Restart=always
 RestartSec=3
@@ -41,4 +43,4 @@ sudo systemctl daemon-reload
 sudo systemctl enable --now rpi2-speaker
 sleep 2
 sudo systemctl --no-pager status rpi2-speaker | head -5
-echo "open http://$(hostname -I | cut -d' ' -f1):$PORT"
+echo "open http://$(hostname -I | cut -d' ' -f1)$([ "$PORT" = 80 ] || echo ":$PORT")"

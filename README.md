@@ -13,7 +13,7 @@ cd rpi2_speaker
 ```
 
 mpv/ffmpeg/yt-dlp 설치, `/mnt/music` 생성, systemd 서비스 등록·시작까지 수행하며 재부팅 후 자동 실행된다.
-환경변수 `MUSIC_DIR`, `PORT`로 경로·포트를 바꿀 수 있다 (예: `PORT=80 ./install.sh`).
+환경변수 `MUSIC_DIR`, `PORT`로 경로·포트를 바꿀 수 있다 (기본 포트 80, 예: `PORT=8080 ./install.sh`).
 
 NAS 등 네트워크 공유는 `/mnt/music`에 마운트한다. 예 (`/etc/fstab`):
 
@@ -21,14 +21,14 @@ NAS 등 네트워크 공유는 `/mnt/music`에 마운트한다. 예 (`/etc/fstab
 //nas/music  /mnt/music  cifs  guest,ro,_netdev,x-systemd.automount  0  0
 ```
 
-브라우저에서 `http://<pi-ip>:8080` 접속.
+브라우저에서 `http://<pi-ip>` 접속.
 
 수동 실행: `MUSIC_DIR=/mnt/music PORT=8080 python3 speaker.py`
 로그: `journalctl -u rpi2-speaker -f`
 
 ## API
 
-POST는 `Content-Type: application/json` 헤더가 있어야 하고, 브라우저가 보낸 `Origin`은 접속한 호스트와 같아야 한다 (다른 사이트에서의 CSRF 차단). 예: `curl -XPOST -H 'Content-Type: application/json' -d '{"volume":50}' http://<pi-ip>:8080/api/volume`
+POST는 `Content-Type: application/json` 헤더가 있어야 하고, 브라우저가 보낸 `Origin`은 접속한 호스트와 같아야 한다 (다른 사이트에서의 CSRF 차단). 예: `curl -XPOST -H 'Content-Type: application/json' -d '{"volume":50}' http://<pi-ip>/api/volume`
 
 | Method | Path | Body |
 |---|---|---|
