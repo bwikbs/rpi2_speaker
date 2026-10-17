@@ -1,5 +1,6 @@
 __pycache__/
 *.sock
 state.json
-state.tmp
+*.tmp
+playlists.json
 watch_later/

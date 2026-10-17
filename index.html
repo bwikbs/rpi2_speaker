@@ -2,50 +2,116 @@
 <html lang="ko">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1d6fd8">
 <title>rpi2 speaker</title>
 <style>
-  body { font-family: sans-serif; max-width: 600px; margin: 16px auto; padding: 0 16px; }
-  input[type=url] { width: 100%; box-sizing: border-box; padding: 8px; font-size: 16px; }
-  button { padding: 8px 16px; font-size: 16px; margin: 4px 4px 4px 0; }
-  #files li, #queue li { padding: 4px 0; }
-  #files li { cursor: pointer; }
-  #files li:hover { text-decoration: underline; }
-  #queue li.cur { font-weight: bold; }
-  #queue button { padding: 0 6px; font-size: 12px; }
-  #files li button { margin-left: 8px; }
-  #now { background: #eee; padding: 8px; border-radius: 4px; word-break: break-all; }
+  :root { --bg: #f4f5f7; --card: #fff; --fg: #1b1c1f; --muted: #6b6f76; --line: #e2e4e8; --accent: #1d6fd8; --on-accent: #fff; --btn: #eceef1; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #121316; --card: #1d1f23; --fg: #ececee; --muted: #9a9ea6; --line: #2e3137; --accent: #4c93ef; --on-accent: #0d0e10; --btn: #2a2d33; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.4 system-ui, -apple-system, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+         padding: 12px max(16px, env(safe-area-inset-right)) calc(24px + env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left)); }
+  main { max-width: 600px; margin: 0 auto; }
+  h1 { font-size: 20px; margin: 4px 0 12px; }
+  h2 { font-size: 16px; margin: 0; flex: 1; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px; margin-bottom: 12px; }
+  .head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .row { display: flex; gap: 8px; align-items: center; }
+  .row > * { flex: 1; min-width: 0; }
+  button, select, input { font: inherit; color: inherit; }
+  button { min-height: 44px; padding: 0 12px; border: 0; border-radius: 10px; background: var(--btn); cursor: pointer; touch-action: manipulation; }
+  button:disabled { opacity: .35; }
+  button.primary, .seg button.on { background: var(--accent); color: var(--on-accent); }
+  button.sm { min-height: 40px; min-width: 40px; padding: 0 8px; flex: none; }
+  input[type=url], input[type=text], select { width: 100%; min-height: 44px; padding: 0 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); }
+  input[type=range] { width: 100%; height: 32px; accent-color: var(--accent); margin: 0; }
+  .seg { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 12px; }
+  .seg button { font-weight: 600; }
+  #title { font-weight: 600; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  #time { color: var(--muted); font-size: 14px; font-variant-numeric: tabular-nums; }
+  .ctl button { font-size: 20px; }
+  ul.list { list-style: none; margin: 0; padding: 0; }
+  ul.list li { display: flex; align-items: center; gap: 6px; padding: 4px 0; border-top: 1px solid var(--line); }
+  ul.list li:first-child { border-top: 0; }
+  ul.list .t { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 8px 0; }
+  ul.list li.cur .t { font-weight: 700; color: var(--accent); }
+  ul.list .n { color: var(--muted); font-size: 14px; }
+  .empty { color: var(--muted); padding: 8px 0; }
+  .msg { color: var(--muted); font-size: 14px; min-height: 1.4em; margin-top: 6px; overflow-wrap: anywhere; }
+  .stack > * + * { margin-top: 8px; }
 </style>
 </head>
 <body>
-<h2>rpi2 speaker</h2>
-<div id="now">정지됨</div>
-<input type="range" id="pos" min="0" max="0" step="1" style="width:100%" onchange="post('/api/seek',{time:this.value})">
-<p>
-  <button onclick="post('/api/prev')">⏮</button>
-  <button onclick="post('/api/pause')">⏯</button>
-  <button onclick="post('/api/next')">⏭</button>
-  <button onclick="post('/api/stop')">⏹</button>
-  <button id="mute" onclick="post('/api/mute')">🔊</button>
-  <input type="range" id="vol" min="0" max="100" onchange="post('/api/volume',{volume:this.value})">
-</p>
-<p>출력: <select id="dev" onchange="post('/api/device',{device:this.value})"></select></p>
-<form onsubmit="post('/api/play',{url:url.value});return false">
-  <input type="url" id="url" placeholder="YouTube / YouTube Music / 스트림 URL" required>
-  <button>재생</button>
-  <button type="button" onclick="url.reportValidity()&&post('/api/queue',{url:url.value})">큐 추가</button>
-</form>
-<h3>큐 <button onclick="post('/api/clear')">비우기</button></h3>
-<ol id="queue"></ol>
-<h3>시스템</h3>
-<p>
-  <button id="upd" onclick="update()">yt-dlp 업데이트</button>
-  <button onclick="if(confirm('재부팅할까요?'))post('/api/reboot')">재부팅</button>
-  <span id="sys"></span>
-</p>
-<h3>로컬 파일</h3>
-<ul id="files"></ul>
+<main>
+<h1>rpi2 speaker</h1>
+<div class="seg" id="prof"></div>
+
+<section class="card stack">
+  <div id="title">정지됨</div>
+  <input type="range" id="pos" min="0" max="0" step="1" aria-label="재생 위치" onchange="post('/api/seek',{time:this.value})">
+  <div id="time"></div>
+  <div class="row ctl">
+    <button onclick="post('/api/prev')" aria-label="이전">⏮</button>
+    <button class="primary" onclick="post('/api/pause')" aria-label="재생/일시정지">⏯</button>
+    <button onclick="post('/api/next')" aria-label="다음">⏭</button>
+    <button onclick="post('/api/stop')" aria-label="정지">⏹</button>
+  </div>
+  <div class="row">
+    <button id="mute" class="sm" onclick="post('/api/mute')" aria-label="음소거">🔊</button>
+    <input type="range" id="vol" min="0" max="100" aria-label="볼륨" onchange="post('/api/volume',{volume:this.value})">
+  </div>
+</section>
+
+<section class="card">
+  <form class="stack" onsubmit="post('/api/play',{url:url.value});return false">
+    <input type="url" id="url" placeholder="YouTube / YouTube Music / 스트림 URL" required>
+    <div class="row">
+      <button class="primary">바로 재생</button>
+      <button type="button" onclick="url.reportValidity()&&post('/api/queue',{url:url.value})">큐에 추가</button>
+    </div>
+  </form>
+</section>
+
+<section class="card">
+  <div class="head"><h2>큐</h2><button class="sm" onclick="post('/api/clear')">비우기</button></div>
+  <ul class="list" id="queue"></ul>
+</section>
+
+<section class="card">
+  <div class="head"><h2 id="plhead">플레이리스트</h2></div>
+  <form class="row" onsubmit="savePl();return false">
+    <input type="text" id="plname" placeholder="새 플레이리스트 이름" maxlength="50" required>
+    <button class="sm primary">현재 큐 저장</button>
+  </form>
+  <div class="msg" id="plmsg"></div>
+  <ul class="list" id="pls"></ul>
+</section>
+
+<section class="card">
+  <div class="head"><h2>로컬 파일</h2></div>
+  <ul class="list" id="files"></ul>
+</section>
+
+<section class="card stack">
+  <div class="head"><h2>시스템</h2></div>
+  <select id="dev" aria-label="출력 장치" onchange="post('/api/device',{device:this.value})"></select>
+  <div class="row">
+    <button id="upd" onclick="update()">yt-dlp 업데이트</button>
+    <button onclick="if(confirm('재부팅할까요?'))post('/api/reboot')">재부팅</button>
+  </div>
+  <div class="msg" id="sys"></div>
+</section>
+</main>
 <script>
+let profile = null, playlists = {};
+try { profile = localStorage.getItem('profile'); } catch (e) {}
+
+function el(tag, text, cls) { const e = document.createElement(tag); if (text != null) e.textContent = text; if (cls) e.className = cls; return e; }
+function btn(text, f, label) { const b = el('button', text, 'sm'); b.type = 'button'; b.onclick = f; if (label) b.setAttribute('aria-label', label); return b; }
+function row(title, ...buttons) { const li = el('li'); li.append(el('span', title, 't'), ...buttons); return li; }
+
 async function post(p, body) {
   const r = await fetch(p, {method: 'POST', body: JSON.stringify(body || {})});
   show(await r.json());
@@ -58,45 +124,84 @@ async function update() {
 }
 function fmt(s) { s = Math.floor(s || 0); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); }
 function show(s) {
-  if (s.error) { now.textContent = '오류: ' + s.error; return; }
+  if (s.error) { title.textContent = '오류: ' + s.error; return; }
   if (!('idle' in s)) return;
-  now.textContent = s.idle ? '정지됨' : (s.paused ? '⏸ ' : '▶ ') + s.title + ' ' + fmt(s.time) + '/' + fmt(s.duration);
+  title.textContent = s.idle ? '정지됨' : (s.paused ? '⏸ ' : '▶ ') + s.title;
+  time.textContent = s.idle ? '' : fmt(s.time) + ' / ' + fmt(s.duration);
   pos.max = Math.floor(s.duration || 0); pos.disabled = !pos.max;
   if (document.activeElement !== pos) pos.value = Math.floor(s.time || 0);
   if (document.activeElement !== vol) vol.value = s.volume;
   mute.textContent = s.mute ? '🔇' : '🔊';
   if (s.devices && dev.length !== s.devices.length) {
     dev.innerHTML = '';
-    for (const d of s.devices) { const o = document.createElement('option'); o.value = d.name; o.textContent = d.description; dev.appendChild(o); }
+    for (const d of s.devices) { const o = el('option', d.description); o.value = d.name; dev.appendChild(o); }
   }
   if (document.activeElement !== dev) dev.value = s.device;
   const key = JSON.stringify(s.queue);
   if (key !== queue.dataset.key) {
     queue.dataset.key = key; queue.innerHTML = '';
+    if (!s.queue.length) queue.appendChild(el('li', '비어 있음', 'empty'));
     s.queue.forEach((q, i) => {
-      const li = document.createElement('li'); li.className = q.current ? 'cur' : '';
-      li.textContent = q.title + ' ';
-      for (const [t, f] of [['▲', () => post('/api/move', {from: i, to: i - 1})],
-                            ['▼', () => post('/api/move', {from: i, to: i + 1})],
-                            ['✕', () => post('/api/remove', {index: i})]]) {
-        const b = document.createElement('button'); b.textContent = t; b.onclick = f;
-        b.disabled = (t === '▲' && i === 0) || (t === '▼' && i === s.queue.length - 1);
-        li.appendChild(b);
-      }
+      const up = btn('▲', () => post('/api/move', {from: i, to: i - 1}), '위로');
+      const down = btn('▼', () => post('/api/move', {from: i, to: i + 1}), '아래로');
+      up.disabled = i === 0; down.disabled = i === s.queue.length - 1;
+      const li = row(q.title, up, down, btn('✕', () => post('/api/remove', {index: i}), '삭제'));
+      if (q.current) li.className = 'cur';
       queue.appendChild(li);
     });
   }
 }
+
+function setProfile(p) {
+  profile = p;
+  try { localStorage.setItem('profile', p); } catch (e) {}
+  for (const b of prof.children) b.className = b.textContent === p ? 'on' : '';
+  plhead.textContent = p + '의 플레이리스트';
+  plmsg.textContent = '';
+  renderPls();
+  // another phone may have changed playlists since load
+  fetch('/api/playlists').then(r => r.json()).then(d => { playlists = d.playlists; renderPls(); });
+}
+function renderPls() {
+  pls.innerHTML = '';
+  const mine = playlists[profile] || {};
+  const names = Object.keys(mine).sort((a, b) => a.localeCompare(b, 'ko'));
+  if (!names.length) pls.appendChild(el('li', '저장된 플레이리스트 없음', 'empty'));
+  for (const n of names) {
+    const li = row(n,
+      btn('▶', () => post('/api/playlist/play', {profile, name: n}), '재생'),
+      btn('+큐', () => post('/api/playlist/play', {profile, name: n, append: true}), '큐에 추가'),
+      btn('✕', () => confirm(`'${n}' 삭제할까요?`) && plPost('/api/playlist/delete', {profile, name: n}), '삭제'));
+    li.querySelector('.t').append(' ', el('span', mine[n].length + '곡', 'n'));
+    pls.appendChild(li);
+  }
+}
+async function plPost(p, body) {
+  const r = await (await fetch(p, {method: 'POST', body: JSON.stringify(body)})).json();
+  if (r.error) { plmsg.textContent = '오류: ' + r.error; return false; }
+  playlists = r; renderPls(); return true;
+}
+async function savePl() {
+  const n = plname.value.trim();
+  if (!n) return;
+  if ((playlists[profile] || {})[n] && !confirm(`'${n}'을(를) 현재 큐로 덮어쓸까요?`)) return;
+  if (await plPost('/api/playlist/save', {profile, name: n})) { plname.value = ''; plmsg.textContent = `'${n}' 저장됨`; }
+}
+
+fetch('/api/playlists').then(r => r.json()).then(d => {
+  playlists = d.playlists;
+  for (const p of d.profiles) { const b = el('button', p); b.type = 'button'; b.onclick = () => setProfile(p); prof.appendChild(b); }
+  setProfile(d.profiles.includes(profile) ? profile : d.profiles[0]);
+});
 fetch('/api/files').then(r => r.json()).then(fs => {
-  if (!fs.length) files.innerHTML = '<li>없음</li>';
+  if (!fs.length) files.appendChild(el('li', '없음', 'empty'));
   for (const f of fs) {
-    const li = document.createElement('li'); li.textContent = f; li.onclick = () => post('/api/play', {url: f});
-    const b = document.createElement('button'); b.textContent = '+큐';
-    b.onclick = e => { e.stopPropagation(); post('/api/queue', {url: f}); };
-    li.appendChild(b); files.appendChild(li);
+    files.appendChild(row(f, btn('▶', () => post('/api/play', {url: f}), '재생'),
+                             btn('+큐', () => post('/api/queue', {url: f}), '큐에 추가')));
   }
 });
-setInterval(() => fetch('/api/status').then(r => r.json()).then(show), 2000);
+const poll = () => fetch('/api/status').then(r => r.json()).then(show);
+poll(); setInterval(poll, 2000);
 </script>
 </body>
 </html>

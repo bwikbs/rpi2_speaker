@@ -18,22 +18,64 @@ AUDIO_EXT = {".mp3", ".flac", ".m4a", ".wav", ".ogg", ".opus", ".aac"}
 HTML = (Path(__file__).parent / "index.html").read_bytes()
 STATE = Path(__file__).parent / "state.json"  # audio device + volume + queue, survives reboot
 WATCH_DIR = Path(__file__).parent / "watch_later"  # per-file resume position (mpv native)
-STATE_LOCK = threading.Lock()  # HTTP handlers run in threads; serialize read-modify-write of STATE
+PLAYLISTS = Path(__file__).parent / "playlists.json"  # {profile: {name: [url, ...]}}
+PROFILES = ["아빠", "엄마", "지민", "지훈"]
+FILE_LOCK = threading.Lock()  # HTTP handlers run in threads; serialize read-modify-write of state files
 
 
-def load_state():
+def read_json(path):
     try:
-        return json.loads(STATE.read_text())
+        return json.loads(path.read_text())
     except (OSError, ValueError):
         return {}
 
 
+def write_json(path, obj):
+    """Atomic replace: a Pi losing power mid-write must not leave a truncated file."""
+    tmp = path.with_suffix(".tmp")
+    tmp.write_text(json.dumps(obj, ensure_ascii=False))
+    os.replace(tmp, path)
+
+
+def load_state():
+    return read_json(STATE)
+
+
 def save_state(**kv):
-    """Atomic replace: a Pi losing power mid-write must not leave a truncated state.json."""
-    with STATE_LOCK:
-        tmp = STATE.with_suffix(".tmp")
-        tmp.write_text(json.dumps({**load_state(), **kv}))
-        os.replace(tmp, STATE)
+    with FILE_LOCK:
+        write_json(STATE, {**load_state(), **kv})
+
+
+def load_playlists():
+    saved = read_json(PLAYLISTS)
+    return {p: saved.get(p, {}) for p in PROFILES}
+
+
+def edit_playlist(profile, name, urls):
+    """Store urls as profile's playlist `name`; urls=None deletes it."""
+    if profile not in PROFILES:
+        raise ValueError("unknown profile")
+    name = name.strip()
+    if not name or len(name) > 50:
+        raise ValueError("playlist name must be 1-50 chars")
+    with FILE_LOCK:
+        pls = load_playlists()
+        if urls is None:
+            pls[profile].pop(name, None)
+        else:
+            pls[profile][name] = urls
+        write_json(PLAYLISTS, pls)
+    return pls
+
+
+def play_playlist(profile, name, append):
+    urls = load_playlists().get(profile, {}).get(name)
+    if not urls:
+        raise ValueError("no such playlist")
+    for i, u in enumerate(urls):
+        mpv_cmd("loadfile", u, "append-play" if append or i else "replace")
+    if not append:
+        mpv_cmd("set_property", "pause", False)
 
 
 def read_reply(s, req_id):
@@ -162,14 +204,25 @@ class Handler(BaseHTTPRequestHandler):
             self._json(status())
         elif self.path == "/api/files":
             self._json(list_files())
+        elif self.path == "/api/playlists":
+            self._json({"profiles": PROFILES, "playlists": load_playlists()})
         else:
             self._json({"error": "not found"}, 404)
 
     def do_POST(self):
-        n = int(self.headers.get("Content-Length") or 0)
-        body = json.loads(self.rfile.read(n) or b"{}")
         try:
-            if self.path == "/api/play":
+            n = int(self.headers.get("Content-Length") or 0)
+            body = json.loads(self.rfile.read(n) or b"{}")
+            if self.path == "/api/playlist/save":
+                urls = [e["filename"] for e in prop("playlist", [])]
+                if not urls:
+                    raise ValueError("queue is empty")
+                return self._json(edit_playlist(body["profile"], body["name"], urls))
+            elif self.path == "/api/playlist/delete":
+                return self._json(edit_playlist(body["profile"], body["name"], None))
+            elif self.path == "/api/playlist/play":
+                play_playlist(body["profile"], body["name"], bool(body.get("append")))
+            elif self.path == "/api/play":
                 mpv_cmd("loadfile", resolve(body["url"]))
                 mpv_cmd("set_property", "pause", False)
             elif self.path == "/api/queue":

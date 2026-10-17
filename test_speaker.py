@@ -55,3 +55,31 @@ assert calls == [("loadfile", "/m/a.mp3", "append"), ("loadfile", "https://y/x",
                  ("set_property", "pause", True), ("playlist-play-index", 1)], calls
 calls.clear(); speaker.restore_queue({}); assert calls == []
 print("ok restore")
+
+# playlists: per-profile save/delete, persisted, replayed into mpv
+with tempfile.TemporaryDirectory() as d:
+    speaker.PLAYLISTS = Path(d) / "playlists.json"
+    assert speaker.load_playlists() == {p: {} for p in speaker.PROFILES}
+    speaker.edit_playlist("지민", " 아이유 ", ["https://y/a", "/m/b.mp3"])
+    speaker.edit_playlist("아빠", "jazz", ["https://y/c"])
+    pls = speaker.load_playlists()
+    assert pls["지민"] == {"아이유": ["https://y/a", "/m/b.mp3"]} and pls["엄마"] == {}, pls
+    for bad in [("이모", "x"), ("지민", " "), ("지민", "x" * 51)]:
+        try:
+            speaker.edit_playlist(*bad, ["u"])
+            assert False, bad
+        except ValueError:
+            pass
+    calls.clear(); speaker.play_playlist("지민", "아이유", append=False)
+    assert calls == [("loadfile", "https://y/a", "replace"), ("loadfile", "/m/b.mp3", "append-play"),
+                     ("set_property", "pause", False)], calls
+    calls.clear(); speaker.play_playlist("아빠", "jazz", append=True)
+    assert calls == [("loadfile", "https://y/c", "append-play")], calls
+    speaker.edit_playlist("지민", "아이유", None)
+    assert speaker.load_playlists()["지민"] == {}
+    try:
+        speaker.play_playlist("지민", "아이유", append=False)
+        assert False
+    except ValueError:
+        pass
+print("ok playlists")
