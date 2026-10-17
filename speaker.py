@@ -139,7 +139,30 @@ def move_args(src, dst):
 
 
 def save_queue():
-    save_state(queue=[e["filename"] for e in prop("playlist", [])], pos=prop("playlist-pos", -1))
+    """Uses mpv_cmd, not prop: if mpv is down, raise rather than overwrite the saved queue with []."""
+    q = {"queue": [e["filename"] for e in mpv_cmd("get_property", "playlist")],
+         "pos": mpv_cmd("get_property", "playlist-pos")}
+    st = load_state()
+    if {k: st.get(k) for k in q} != q:  # skip no-op writes, checkpoint calls this every 10s
+        save_state(**q)
+
+
+def play_now(url):
+    """Insert right after the current track and jump to it, keeping the rest of the queue."""
+    pos = mpv_cmd("get_property", "playlist-pos")
+    idx = pos + 1 if pos >= 0 else mpv_cmd("get_property", "playlist-count")
+    mpv_cmd("loadfile", url, "insert-at", idx)
+    mpv_cmd("playlist-play-index", idx)
+    mpv_cmd("set_property", "pause", False)
+
+
+def post_allowed(headers):
+    """Block cross-site POSTs: a JSON content type forces a CORS preflight we never answer,
+    and a browser-sent Origin must match the host it is talking to."""
+    if not (headers.get("Content-Type") or "").startswith("application/json"):
+        return False
+    origin = headers.get("Origin")
+    return origin is None or origin.split("://", 1)[-1] == headers.get("Host")
 
 
 def restore_queue(st):
@@ -156,6 +179,7 @@ def checkpoint():
         time.sleep(10)
         try:
             mpv_cmd("write-watch-later-config")
+            save_queue()  # tracks advance on their own; keep pos current for the next boot
         except (RuntimeError, OSError):
             pass
 
@@ -210,6 +234,8 @@ class Handler(BaseHTTPRequestHandler):
             self._json({"error": "not found"}, 404)
 
     def do_POST(self):
+        if not post_allowed(self.headers):
+            return self._json({"error": "forbidden"}, 403)
         try:
             n = int(self.headers.get("Content-Length") or 0)
             body = json.loads(self.rfile.read(n) or b"{}")
@@ -223,8 +249,7 @@ class Handler(BaseHTTPRequestHandler):
             elif self.path == "/api/playlist/play":
                 play_playlist(body["profile"], body["name"], bool(body.get("append")))
             elif self.path == "/api/play":
-                mpv_cmd("loadfile", resolve(body["url"]))
-                mpv_cmd("set_property", "pause", False)
+                play_now(resolve(body["url"]))
             elif self.path == "/api/queue":
                 mpv_cmd("loadfile", resolve(body["url"]), "append-play")
             elif self.path == "/api/next":
@@ -264,7 +289,7 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json({"error": "not found"}, 404)
             save_queue()
             self._json(status())
-        except (KeyError, ValueError, RuntimeError, OSError, subprocess.TimeoutExpired) as e:
+        except (KeyError, TypeError, ValueError, RuntimeError, OSError, subprocess.TimeoutExpired) as e:
             self._json({"error": str(e)}, 400)
 
     def log_message(self, *a):

@@ -28,12 +28,14 @@ NAS 등 네트워크 공유는 `/mnt/music`에 마운트한다. 예 (`/etc/fstab
 
 ## API
 
+POST는 `Content-Type: application/json` 헤더가 있어야 하고, 브라우저가 보낸 `Origin`은 접속한 호스트와 같아야 한다 (다른 사이트에서의 CSRF 차단). 예: `curl -XPOST -H 'Content-Type: application/json' -d '{"volume":50}' http://<pi-ip>:8080/api/volume`
+
 | Method | Path | Body |
 |---|---|---|
 | GET | `/api/status` | 현재 곡, 볼륨, 장치, `queue` 포함 |
 | GET | `/api/files` | |
 | GET | `/api/playlists` | `{"profiles": [...], "playlists": {프로필: {이름: [url, ...]}}}` |
-| POST | `/api/play` | `{"url": "<URL 또는 MUSIC_DIR 상대경로>"}` |
+| POST | `/api/play` | `{"url": "<URL 또는 MUSIC_DIR 상대경로>"}` 현재 곡 다음에 넣고 바로 재생 (큐 유지) |
 | POST | `/api/queue` | `{"url": ...}` 큐 끝에 추가 (정지 상태면 바로 재생) |
 | POST | `/api/next` / `/api/prev` | |
 | POST | `/api/remove` | `{"index": n}` |

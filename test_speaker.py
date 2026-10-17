@@ -83,3 +83,34 @@ with tempfile.TemporaryDirectory() as d:
     except ValueError:
         pass
 print("ok playlists")
+
+# post_allowed: JSON content type required, cross-site Origin rejected
+J = {"Content-Type": "application/json", "Host": "pi:8080"}
+assert speaker.post_allowed(J)
+assert speaker.post_allowed({**J, "Origin": "http://pi:8080"})
+assert not speaker.post_allowed({**J, "Origin": "https://evil.example"})
+assert not speaker.post_allowed({"Content-Type": "text/plain", "Host": "pi:8080"})
+assert not speaker.post_allowed({"Host": "pi:8080"})
+print("ok csrf")
+
+# play_now inserts after current track instead of wiping the queue; save_queue skips no-op writes
+props = {"playlist-pos": 1, "playlist-count": 3, "playlist": [{"filename": "a"}]}
+def fake(*a):
+    calls.append(a)
+    return props.get(a[1]) if a[0] == "get_property" else None
+speaker.mpv_cmd = fake
+calls.clear(); speaker.play_now("u")
+assert calls[1:] == [("loadfile", "u", "insert-at", 2), ("playlist-play-index", 2),
+                     ("set_property", "pause", False)], calls
+props["playlist-pos"] = -1
+calls.clear(); speaker.play_now("u")
+assert calls[2:4] == [("loadfile", "u", "insert-at", 3), ("playlist-play-index", 3)], calls
+with tempfile.TemporaryDirectory() as d:
+    speaker.STATE = Path(d) / "state.json"
+    speaker.save_state(volume=5)
+    speaker.save_queue()
+    assert speaker.load_state() == {"volume": 5, "queue": ["a"], "pos": -1}
+    mtime = speaker.STATE.stat().st_mtime_ns
+    speaker.save_queue()
+    assert speaker.STATE.stat().st_mtime_ns == mtime
+print("ok play_now/save_queue")
