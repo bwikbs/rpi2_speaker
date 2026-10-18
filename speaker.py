@@ -25,6 +25,8 @@ PLAYLISTS = Path(__file__).parent / "playlists.json"  # {profile: {name: [url, .
 PROFILES = ["지훈", "아빠", "지민", "엄마"]
 TITLES = {}  # url -> title; mpv forgets titles of queue entries reloaded after a restart
 TITLE_CAP = 1000
+REPEAT = {"off": ("no", "no"), "all": ("no", "inf"), "one": ("inf", "no")}  # mode -> (loop-file, loop-playlist)
+repeat_mode = "off"
 FILE_LOCK = threading.Lock()  # HTTP handlers run in threads; serialize read-modify-write of state files
 
 
@@ -214,17 +216,31 @@ def watchdog(proc):
     os._exit(1)
 
 
+def set_repeat(mode):
+    global repeat_mode
+    loop_file, loop_playlist = REPEAT[mode]  # KeyError -> 400 for unknown modes
+    mpv_cmd("set_property", "loop-file", loop_file)
+    mpv_cmd("set_property", "loop-playlist", loop_playlist)
+    repeat_mode = mode
+    save_state(repeat=mode)
+
+
 def status():
+    pl = prop("playlist", [])
+    cur = next((e for e in pl if e.get("current")), None)
+    duration = prop("duration", 0)
     return {
-        "title": prop("media-title", ""),
+        # while a URL is still loading mpv's media-title is just "watch?v=..."; prefer a remembered title
+        "title": prop("media-title", "") if duration or not cur else title_of(cur),
         "path": prop("path", ""),
         "paused": prop("pause", True),
         "idle": prop("idle-active", True),
         "volume": prop("volume", 0),
         "mute": prop("mute", False),
-        "queue": [{"title": title_of(e), "current": e.get("current", False)} for e in prop("playlist", [])],
+        "repeat": repeat_mode,
+        "queue": [{"title": title_of(e), "current": e.get("current", False)} for e in pl],
         "time": prop("time-pos", 0),
-        "duration": prop("duration", 0),
+        "duration": duration,
     }
 
 
@@ -289,6 +305,8 @@ class Handler(BaseHTTPRequestHandler):
                 mpv_cmd("cycle", "pause")
             elif self.path == "/api/seek":
                 mpv_cmd("seek", float(body["time"]), "absolute")
+            elif self.path == "/api/repeat":
+                set_repeat(body["mode"])
             elif self.path == "/api/mute":
                 mpv_cmd("cycle", "mute")
             elif self.path == "/api/stop":
@@ -340,6 +358,7 @@ if __name__ == "__main__":
     mpv = start_mpv()
     try:
         TITLES.update(load_state().get("titles", {}))
+        set_repeat(load_state().get("repeat", "off"))
         restore_queue(load_state())
         threading.Thread(target=checkpoint, daemon=True).start()
         threading.Thread(target=watchdog, args=(mpv,), daemon=True).start()

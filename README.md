@@ -47,6 +47,7 @@ POST는 `Content-Type: application/json` 헤더가 있어야 하고, 브라우�
 | POST | `/api/playlist/delete` | `{"profile", "name"}` |
 | POST | `/api/pause` | (토글) |
 | POST | `/api/mute` | (토글) |
+| POST | `/api/repeat` | `{"mode": "off" \| "all" \| "one"}` 반복 없음 / 전체 반복 / 1곡 반복 |
 | POST | `/api/seek` | `{"time": 초}` |
 | POST | `/api/stop` | |
 | POST | `/api/volume` | `{"volume": 0-100}` |
@@ -59,7 +60,7 @@ POST는 `Content-Type: application/json` 헤더가 있어야 하고, 브라우�
 
 출력은 항상 3.5mm 헤드폰 잭이다 (환경변수 `AUDIO_DEVICE`로 변경 가능, 기본 `alsa/default:CARD=Headphones`). YouTube 믹스/재생목록 URL(`watch?v=..&list=..`)은 앞 50곡이 큐에 들어간다.
 
-볼륨, 큐와 현재 곡 위치는 `state.json`에, 곡 내 재생 위치는 `watch_later/`에 저장되어 재부팅 후에도 유지된다. 부팅 직후에는 일시정지 상태로 복원된다. 모니터·키보드 없이 동작한다.
+볼륨, 반복 모드, 큐와 현재 곡 위치는 `state.json`에, 곡 내 재생 위치는 `watch_later/`에 저장되어 재부팅 후에도 유지된다. 부팅 직후에는 일시정지 상태로 복원된다. 모니터·키보드 없이 동작한다.
 
 ## 테스트
 

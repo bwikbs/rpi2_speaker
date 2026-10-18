@@ -129,3 +129,19 @@ speaker.TITLE_CAP = 1
 speaker.remember_titles([{"filename": "https://y/c", "title": "C"}])
 assert speaker.TITLES == {"https://y/c": "C"}
 print("ok titles")
+
+# repeat: modes map onto mpv loop-file / loop-playlist and are persisted
+with tempfile.TemporaryDirectory() as d:
+    speaker.STATE = Path(d) / "state.json"
+    calls.clear(); speaker.set_repeat("one")
+    assert calls == [("set_property", "loop-file", "inf"), ("set_property", "loop-playlist", "no")], calls
+    calls.clear(); speaker.set_repeat("all")
+    assert calls == [("set_property", "loop-file", "no"), ("set_property", "loop-playlist", "inf")], calls
+    assert speaker.repeat_mode == "all" and speaker.load_state()["repeat"] == "all"
+    try:
+        speaker.set_repeat("bogus")
+        assert False
+    except KeyError:
+        pass
+    assert speaker.repeat_mode == "all"
+print("ok repeat")
