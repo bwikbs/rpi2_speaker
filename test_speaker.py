@@ -114,3 +114,24 @@ with tempfile.TemporaryDirectory() as d:
     speaker.save_queue()
     assert speaker.STATE.stat().st_mtime_ns == mtime
 print("ok play_now/save_queue")
+
+# outputs: only real ALSA cards, 3.5mm first; fix_device replaces unusable saved devices
+DEVS = [{"name": "auto", "description": "Autoselect device"},
+        {"name": "alsa/default:CARD=vc4hdmi", "description": "vc4-hdmi, MAI PCM i2s-hifi-0/Default Audio Device"},
+        {"name": "alsa/hdmi:CARD=vc4hdmi,DEV=0", "description": "vc4-hdmi, MAI PCM i2s-hifi-0/HDMI Audio Output"},
+        {"name": "alsa/default:CARD=Headphones", "description": "bcm2835 Headphones, bcm2835 Headphones/Default Audio Device"},
+        {"name": "alsa/default:CARD=Device", "description": "USB Audio Device, USB Audio/Default Audio Device"},
+        {"name": "jack", "description": "Default (jack)"}]
+assert speaker.outputs(DEVS) == [
+    {"name": "alsa/default:CARD=Headphones", "description": "3.5mm 헤드폰 잭"},
+    {"name": "alsa/default:CARD=vc4hdmi", "description": "HDMI (vc4hdmi)"},
+    {"name": "alsa/default:CARD=Device", "description": "USB Audio Device"}], speaker.outputs(DEVS)
+props["audio-device-list"] = DEVS
+with tempfile.TemporaryDirectory() as d:
+    speaker.STATE = Path(d) / "state.json"
+    calls.clear(); speaker.fix_device({"device": "jack"})
+    assert calls[-1] == ("set_property", "audio-device", "alsa/default:CARD=Headphones"), calls
+    assert speaker.load_state()["device"] == "alsa/default:CARD=Headphones"
+    calls.clear(); speaker.fix_device({"device": "alsa/default:CARD=Device"})
+    assert len(calls) == 1, calls  # only the list query, no change
+print("ok outputs")

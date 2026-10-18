@@ -191,6 +191,32 @@ def watchdog(proc):
     os._exit(1)
 
 
+def outputs(devs):
+    """One entry per ALSA card, named for humans. mpv also lists jack/sdl/sndio and 'auto',
+    which on a headless Pi end up on a dead JACK server or a monitor-less HDMI (error 524)."""
+    out = []
+    for d in devs:
+        if not d["name"].startswith("alsa/default:CARD="):
+            continue
+        card = d["name"].split("=", 1)[1]
+        if card == "Headphones":
+            label = "3.5mm 헤드폰 잭"
+        elif "hdmi" in card.lower():
+            label = "HDMI (" + card + ")"
+        else:
+            label = d["description"].split(",")[0]
+        out.append({"name": d["name"], "description": label})
+    return sorted(out, key=lambda o: o["name"] != "alsa/default:CARD=Headphones")
+
+
+def fix_device(st):
+    """A saved device that is not a real card output (e.g. 'jack', 'auto') plays nothing; fall back."""
+    outs = outputs(mpv_cmd("get_property", "audio-device-list"))
+    if outs and st.get("device") not in [o["name"] for o in outs]:
+        mpv_cmd("set_property", "audio-device", outs[0]["name"])
+        save_state(device=outs[0]["name"])
+
+
 def status():
     return {
         "title": prop("media-title", ""),
@@ -200,7 +226,7 @@ def status():
         "volume": prop("volume", 0),
         "mute": prop("mute", False),
         "device": prop("audio-device", "auto"),
-        "devices": prop("audio-device-list", []),
+        "devices": outputs(prop("audio-device-list", [])),
         "queue": [{"title": e.get("title") or e["filename"].replace(str(MUSIC_DIR) + "/", ""),
                    "current": e.get("current", False)} for e in prop("playlist", [])],
         "time": prop("time-pos", 0),
@@ -275,6 +301,8 @@ class Handler(BaseHTTPRequestHandler):
                 mpv_cmd("set_property", "volume", vol)
                 save_state(volume=vol)
             elif self.path == "/api/device":
+                if body["device"] not in [o["name"] for o in outputs(mpv_cmd("get_property", "audio-device-list"))]:
+                    raise ValueError("unknown audio device")
                 mpv_cmd("set_property", "audio-device", body["device"])
                 save_state(device=body["device"])
             elif self.path == "/api/update":  # sudoers rule from install.sh; takes minutes on a Pi 2
@@ -317,6 +345,7 @@ def start_mpv():
 if __name__ == "__main__":
     mpv = start_mpv()
     try:
+        fix_device(load_state())
         restore_queue(load_state())
         threading.Thread(target=checkpoint, daemon=True).start()
         threading.Thread(target=watchdog, args=(mpv,), daemon=True).start()

@@ -49,7 +49,7 @@ POST는 `Content-Type: application/json` 헤더가 있어야 하고, 브라우�
 | POST | `/api/seek` | `{"time": 초}` |
 | POST | `/api/stop` | |
 | POST | `/api/volume` | `{"volume": 0-100}` |
-| POST | `/api/device` | `{"device": "<audio-device-list의 name>"}` |
+| POST | `/api/device` | `{"device": "<status의 devices[].name>"}` ALSA 카드 출력만 허용 |
 | POST | `/api/update` | yt-dlp 최신판 설치 (수 분 소요) |
 | POST | `/api/reboot` | |
 
