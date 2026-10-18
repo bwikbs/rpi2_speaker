@@ -145,3 +145,19 @@ with tempfile.TemporaryDirectory() as d:
         pass
     assert speaker.repeat_mode == "all"
 print("ok repeat")
+
+# sleep timer: arms, reports time left, cancels, pauses when it fires
+speaker.set_timer(30)
+assert 1795 <= speaker.timer_left() <= 1800, speaker.timer_left()
+speaker.set_timer(15)  # re-arming replaces the old timer
+assert speaker.timer_left() <= 900
+speaker.set_timer(0)
+assert speaker.timer_left() is None
+try:
+    speaker.set_timer(7)
+    assert False
+except ValueError:
+    pass
+calls.clear(); speaker.set_timer(15); speaker.timer_expired()
+assert calls == [("set_property", "pause", True)] and speaker.timer_left() is None, calls
+print("ok timer")

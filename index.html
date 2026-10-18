@@ -35,7 +35,7 @@
   button, input { font: inherit; color: inherit; }
   button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 44px; padding: 0 16px;
            border: 0; border-radius: 12px; background: var(--btn); cursor: pointer; touch-action: manipulation; font-weight: 600;
-           transition: transform .08s, opacity .15s, background .15s; }
+           transition: transform .08s, opacity .15s; }
   button:active { transform: scale(.96); }
   button:disabled { opacity: .3; pointer-events: none; }
   button.primary { background: var(--accent); color: var(--on-accent); }
@@ -66,6 +66,12 @@
   .ctl #pp { width: 72px; height: 72px; background: var(--accent); color: var(--on-accent); }
   .ctl #pp svg { width: 36px; height: 36px; }
   .vol { display: flex; align-items: center; gap: 10px; }
+  .timer { display: flex; align-items: center; gap: 10px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
+  .tlabel { display: inline-flex; color: var(--muted); width: 40px; justify-content: center; flex: none; }
+  .tlabel.on { color: var(--accent); }
+  .chips { flex: 1; display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+  .chips button { min-height: 36px; padding: 0 4px; font-size: 14px; border-radius: 999px; font-variant-numeric: tabular-nums; }
+  .chips button.on { background: var(--accent); color: var(--on-accent); }
   .vol output { width: 32px; text-align: right; color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; }
 
   /* segmented profile picker */
@@ -125,6 +131,10 @@
     <input type="range" id="vol" min="0" max="100" aria-label="볼륨"
            oninput="volOut.value=this.value" onchange="post('/api/volume',{volume:+this.value})">
     <output id="volOut">0</output>
+  </div>
+  <div class="timer" role="group" aria-label="취침 타이머">
+    <span class="tlabel" data-i="moon" id="tlabel"></span>
+    <div class="chips" id="chips"></div>
   </div>
 </section>
 
@@ -190,6 +200,7 @@ const ICONS = {
   trash: 'M9 3h6a1 1 0 0 1 1 1v1h4a1 1 0 1 1 0 2h-1l-.87 12.2A2 2 0 0 1 16.14 21H7.86a2 2 0 0 1-2-1.8L5 7H4a1 1 0 0 1 0-2h4V4a1 1 0 0 1 1-1zm-1.99 4 .85 12h8.28l.85-12H7.01zM10 9a1 1 0 0 1 1 1v6a1 1 0 1 1-2 0v-6a1 1 0 0 1 1-1zm4 0a1 1 0 0 1 1 1v6a1 1 0 1 1-2 0v-6a1 1 0 0 1 1-1z',
   save: 'M6 3h9.59a1 1 0 0 1 .7.3l3.42 3.4a1 1 0 0 1 .29.71V19a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zm0 2v14h12V7.83L15.17 5H15v3a1 1 0 0 1-1 1H9a1 1 0 0 1-1-1V5H6zm4 0v2h3V5h-3zm2 7a3 3 0 1 1 0 6 3 3 0 0 1 0-6z',
   repeat: 'M17.3 2.3a1 1 0 0 1 1.4 0l3 3a1 1 0 0 1 0 1.4l-3 3a1 1 0 1 1-1.4-1.4L18.58 7H7a3 3 0 0 0-3 3v1a1 1 0 1 1-2 0v-1a5 5 0 0 1 5-5h11.59L17.3 3.7a1 1 0 0 1 0-1.4zM21 12a1 1 0 0 1 1 1v1a5 5 0 0 1-5 5H5.41l1.3 1.3a1 1 0 1 1-1.42 1.4l-3-3a1 1 0 0 1 0-1.4l3-3a1 1 0 0 1 1.42 1.4L5.4 17H17a3 3 0 0 0 3-3v-1a1 1 0 0 1 1-1z',
+  moon: 'M12.3 2.05a1 1 0 0 1 .27 1.12A7 7 0 0 0 20.83 11.4a1 1 0 0 1 1.38 1.06A10 10 0 1 1 11.2 1.8a1 1 0 0 1 1.1.25zM9.9 4.25a8 8 0 1 0 9.85 9.85A9 9 0 0 1 9.9 4.25z',
   repeatOne: 'M17.3 2.3a1 1 0 0 1 1.4 0l3 3a1 1 0 0 1 0 1.4l-3 3a1 1 0 1 1-1.4-1.4L18.58 7H7a3 3 0 0 0-3 3v1a1 1 0 1 1-2 0v-1a5 5 0 0 1 5-5h11.59L17.3 3.7a1 1 0 0 1 0-1.4zM21 12a1 1 0 0 1 1 1v1a5 5 0 0 1-5 5H5.41l1.3 1.3a1 1 0 1 1-1.42 1.4l-3-3a1 1 0 0 1 0-1.4l3-3a1 1 0 0 1 1.42 1.4L5.4 17H17a3 3 0 0 0 3-3v-1a1 1 0 0 1 1-1zM12.2 9.1a.75.75 0 0 1 .8.75v5.4a.75.75 0 0 1-1.5 0v-4.1l-.67.33a.75.75 0 1 1-.67-1.34l1.6-.8a.75.75 0 0 1 .44-.24z',
   bars: 'M5 10h2v9H5zm4-5h2v14H9zm4 7h2v7h-2zm4-4h2v11h-2z',
 };
@@ -251,6 +262,7 @@ function show(s) {
   const rep = $('rep'), [ri, rl] = REPEAT_UI[repeat];
   setIcon(rep, ri); rep.className = 'sm' + (repeat === 'off' ? '' : ' on');
   rep.setAttribute('aria-label', rl); rep.title = rl;
+  showTimer(s.timer);
   renderQueue(s.queue);
 }
 // long queues (mixes are 50 tracks) collapse to a window around the current track
@@ -285,6 +297,31 @@ const REPEAT_UI = {off: ['repeat', '반복 꺼짐'], all: ['repeat', '전체 반
 const REPEAT_NEXT = {off: 'all', all: 'one', one: 'off'};
 let repeat = 'off';
 function cycleRepeat() { const m = REPEAT_NEXT[repeat]; post('/api/repeat', {mode: m}, REPEAT_UI[m][1]); }
+// sleep timer: tap a duration to arm it, tap the running one (shows time left) to cancel
+const TIMERS = [[15, '15분'], [30, '30분'], [60, '1시간'], [180, '3시간']];
+let timerMin = 0, timerEnd = 0;
+TIMERS.forEach(([m, label]) => {
+  const b = el('button', label); b.type = 'button'; b.dataset.m = m;
+  b.onclick = () => timerMin === m ? post('/api/timer', {minutes: 0}, '타이머를 껐어요')
+                                   : post('/api/timer', {minutes: m}, label + ' 뒤에 멈춰요').then(r => r && (timerMin = m, tickTimer()));
+  $('chips').appendChild(b);
+});
+function showTimer(left) {
+  if (left == null) timerMin = 0;
+  else { timerEnd = Date.now() + left * 1000; if (!timerMin) timerMin = TIMERS.find(([m]) => m * 60 >= left)[0]; }
+  tickTimer();
+}
+function tickTimer() {
+  const left = timerMin ? Math.max(0, Math.round((timerEnd - Date.now()) / 1000)) : 0;
+  for (const b of $('chips').children) {
+    const on = +b.dataset.m === timerMin;
+    b.className = on ? 'on' : '';
+    b.textContent = on ? fmt(left) : TIMERS.find(([m]) => m === +b.dataset.m)[1];
+    b.setAttribute('aria-label', on ? '타이머 끄기, ' + fmt(left) + ' 남음' : b.textContent + ' 뒤 멈춤');
+  }
+  $('tlabel').className = 'tlabel' + (timerMin ? ' on' : '');
+}
+setInterval(tickTimer, 1000);
 function addUrl(next) {
   const u = $('url'); if (!u.reportValidity()) return;
   post(next ? '/api/queue' : '/api/play', {url: u.value}, next ? '대기열에 추가했어요' : '곧 재생돼요')

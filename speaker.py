@@ -27,6 +27,8 @@ TITLES = {}  # url -> title; mpv forgets titles of queue entries reloaded after 
 TITLE_CAP = 1000
 REPEAT = {"off": ("no", "no"), "all": ("no", "inf"), "one": ("inf", "no")}  # mode -> (loop-file, loop-playlist)
 repeat_mode = "off"
+TIMER_MINUTES = {0, 15, 30, 60, 180}  # sleep timer choices; 0 cancels
+sleep_timer = None  # (threading.Timer, monotonic deadline) while a sleep timer is armed
 FILE_LOCK = threading.Lock()  # HTTP handlers run in threads; serialize read-modify-write of state files
 
 
@@ -225,6 +227,35 @@ def set_repeat(mode):
     save_state(repeat=mode)
 
 
+def set_timer(minutes):
+    """Arm (or with 0, cancel) a sleep timer that pauses playback when it runs out."""
+    global sleep_timer
+    if minutes not in TIMER_MINUTES:
+        raise ValueError("timer must be one of " + ", ".join(map(str, sorted(TIMER_MINUTES))))
+    if sleep_timer:
+        sleep_timer[0].cancel()
+        sleep_timer = None
+    if minutes:
+        t = threading.Timer(minutes * 60, timer_expired)
+        t.daemon = True
+        sleep_timer = (t, time.monotonic() + minutes * 60)
+        t.start()
+
+
+def timer_expired():
+    """Pause rather than stop, so the queue and position are still there in the morning."""
+    global sleep_timer
+    sleep_timer = None
+    try:
+        mpv_cmd("set_property", "pause", True)
+    except (RuntimeError, OSError):
+        pass
+
+
+def timer_left():
+    return max(0, round(sleep_timer[1] - time.monotonic())) if sleep_timer else None
+
+
 def status():
     pl = prop("playlist", [])
     cur = next((e for e in pl if e.get("current")), None)
@@ -238,6 +269,7 @@ def status():
         "volume": prop("volume", 0),
         "mute": prop("mute", False),
         "repeat": repeat_mode,
+        "timer": timer_left(),  # seconds until the sleep timer pauses playback, or null
         "queue": [{"title": title_of(e), "current": e.get("current", False)} for e in pl],
         "time": prop("time-pos", 0),
         "duration": duration,
@@ -305,6 +337,8 @@ class Handler(BaseHTTPRequestHandler):
                 mpv_cmd("cycle", "pause")
             elif self.path == "/api/seek":
                 mpv_cmd("seek", float(body["time"]), "absolute")
+            elif self.path == "/api/timer":
+                set_timer(int(body["minutes"]))
             elif self.path == "/api/repeat":
                 set_repeat(body["mode"])
             elif self.path == "/api/mute":

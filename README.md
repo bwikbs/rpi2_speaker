@@ -47,6 +47,7 @@ POST는 `Content-Type: application/json` 헤더가 있어야 하고, 브라우�
 | POST | `/api/playlist/delete` | `{"profile", "name"}` |
 | POST | `/api/pause` | (토글) |
 | POST | `/api/mute` | (토글) |
+| POST | `/api/timer` | `{"minutes": 15 \| 30 \| 60 \| 180}` 그 시간 뒤 일시정지, `0`은 취소. 남은 초는 status의 `timer` |
 | POST | `/api/repeat` | `{"mode": "off" \| "all" \| "one"}` 반복 없음 / 전체 반복 / 1곡 반복 |
 | POST | `/api/seek` | `{"time": 초}` |
 | POST | `/api/stop` | |
