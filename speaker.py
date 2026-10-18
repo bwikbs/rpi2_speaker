@@ -22,7 +22,9 @@ HTML = (Path(__file__).parent / "index.html").read_bytes()
 STATE = Path(__file__).parent / "state.json"  # volume + queue, survives reboot
 WATCH_DIR = Path(__file__).parent / "watch_later"  # per-file resume position (mpv native)
 PLAYLISTS = Path(__file__).parent / "playlists.json"  # {profile: {name: [url, ...]}}
-PROFILES = ["아빠", "엄마", "지민", "지훈"]
+PROFILES = ["지훈", "아빠", "지민", "엄마"]
+TITLES = {}  # url -> title; mpv forgets titles of queue entries reloaded after a restart
+TITLE_CAP = 1000
 FILE_LOCK = threading.Lock()  # HTTP handlers run in threads; serialize read-modify-write of state files
 
 
@@ -141,13 +143,31 @@ def move_args(src, dst):
     return (src, dst + 1 if dst > src else dst)
 
 
+def remember_titles(playlist):
+    """Collect known titles into TITLES; return True if anything new was learned."""
+    found = {e["filename"]: e["title"] for e in playlist if e.get("title")}
+    cur = next((e for e in playlist if e.get("current")), None)
+    if cur and not cur.get("title") and prop("duration"):  # loaded, so media-title is the real one
+        found[cur["filename"]] = prop("media-title")
+    new = {k: v for k, v in found.items() if v and TITLES.get(k) != v}
+    TITLES.update(new)
+    while len(TITLES) > TITLE_CAP:
+        TITLES.pop(next(iter(TITLES)))
+    return bool(new)
+
+
+def title_of(entry):
+    f = entry["filename"]
+    return entry.get("title") or TITLES.get(f) or f.replace(str(MUSIC_DIR) + "/", "")
+
+
 def save_queue():
     """Uses mpv_cmd, not prop: if mpv is down, raise rather than overwrite the saved queue with []."""
-    q = {"queue": [e["filename"] for e in mpv_cmd("get_property", "playlist")],
-         "pos": mpv_cmd("get_property", "playlist-pos")}
+    pl = mpv_cmd("get_property", "playlist")
+    q = {"queue": [e["filename"] for e in pl], "pos": mpv_cmd("get_property", "playlist-pos")}
     st = load_state()
-    if {k: st.get(k) for k in q} != q:  # skip no-op writes, checkpoint calls this every 10s
-        save_state(**q)
+    if remember_titles(pl) or {k: st.get(k) for k in q} != q:  # skip no-op writes, checkpoint calls this every 10s
+        save_state(**q, titles=TITLES)
 
 
 def play_now(url):
@@ -202,8 +222,7 @@ def status():
         "idle": prop("idle-active", True),
         "volume": prop("volume", 0),
         "mute": prop("mute", False),
-        "queue": [{"title": e.get("title") or e["filename"].replace(str(MUSIC_DIR) + "/", ""),
-                   "current": e.get("current", False)} for e in prop("playlist", [])],
+        "queue": [{"title": title_of(e), "current": e.get("current", False)} for e in prop("playlist", [])],
         "time": prop("time-pos", 0),
         "duration": prop("duration", 0),
     }
@@ -257,6 +276,9 @@ class Handler(BaseHTTPRequestHandler):
                 mpv_cmd("playlist-next", "force")
             elif self.path == "/api/prev":
                 mpv_cmd("playlist-prev", "force")
+            elif self.path == "/api/jump":
+                mpv_cmd("playlist-play-index", int(body["index"]))
+                mpv_cmd("set_property", "pause", False)
             elif self.path == "/api/remove":
                 mpv_cmd("playlist-remove", int(body["index"]))
             elif self.path == "/api/move":
@@ -317,6 +339,7 @@ def start_mpv():
 if __name__ == "__main__":
     mpv = start_mpv()
     try:
+        TITLES.update(load_state().get("titles", {}))
         restore_queue(load_state())
         threading.Thread(target=checkpoint, daemon=True).start()
         threading.Thread(target=watchdog, args=(mpv,), daemon=True).start()

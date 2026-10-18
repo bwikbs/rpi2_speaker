@@ -3,198 +3,343 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#1d6fd8">
+<meta name="theme-color" content="#f3f4f7" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0f1013" media="(prefers-color-scheme: dark)">
 <title>rpi2 speaker</title>
 <style>
-  :root { --bg: #f4f5f7; --card: #fff; --fg: #1b1c1f; --muted: #6b6f76; --line: #e2e4e8; --accent: #1d6fd8; --on-accent: #fff; --btn: #eceef1; }
-  @media (prefers-color-scheme: dark) {
-    :root { --bg: #121316; --card: #1d1f23; --fg: #ececee; --muted: #9a9ea6; --line: #2e3137; --accent: #4c93ef; --on-accent: #0d0e10; --btn: #2a2d33; }
+  :root {
+    --bg: #f3f4f7; --card: #fff; --fg: #17181c; --muted: #747882; --line: #e6e7eb;
+    --accent: #3b5bfd; --accent-soft: #eaeefe; --on-accent: #fff; --btn: #f0f1f4; --danger: #e5484d;
+    --shadow: 0 1px 2px rgb(0 0 0 / .04), 0 4px 16px rgb(0 0 0 / .05);
   }
-  * { box-sizing: border-box; }
-  body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.4 system-ui, -apple-system, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
-         padding: 12px max(16px, env(safe-area-inset-right)) calc(24px + env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left)); }
-  main { max-width: 600px; margin: 0 auto; }
-  h1 { font-size: 20px; margin: 4px 0 12px; }
-  h2 { font-size: 16px; margin: 0; flex: 1; }
-  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px; margin-bottom: 12px; }
-  .head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f1013; --card: #1a1b20; --fg: #ececf0; --muted: #9a9daa; --line: #2a2c33;
+      --accent: #7189ff; --accent-soft: #23284a; --on-accent: #0f1013; --btn: #24262d; --danger: #ff6369;
+      --shadow: none;
+    }
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body { margin: 0; background: var(--bg); color: var(--fg);
+         font: 16px/1.45 system-ui, -apple-system, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+         padding: 16px max(16px, env(safe-area-inset-right)) calc(88px + env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left)); }
+  main { max-width: 560px; margin: 0 auto; }
+  header { display: flex; align-items: center; gap: 8px; margin: 0 4px 14px; }
+  header h1 { font-size: 20px; font-weight: 750; letter-spacing: -.02em; margin: 0; flex: 1; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+  .dot.live { background: #30a46c; box-shadow: 0 0 0 4px rgb(48 164 108 / .18); }
+  .card { background: var(--card); border-radius: 18px; padding: 16px; margin-bottom: 14px; box-shadow: var(--shadow); border: 1px solid var(--line); }
+  .head { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+  h2 { font-size: 17px; font-weight: 700; margin: 0; flex: 1; letter-spacing: -.01em; }
+  h2 small { color: var(--muted); font-weight: 500; font-size: 14px; margin-left: 6px; }
+  button, input { font: inherit; color: inherit; }
+  button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 44px; padding: 0 16px;
+           border: 0; border-radius: 12px; background: var(--btn); cursor: pointer; touch-action: manipulation; font-weight: 600;
+           transition: transform .08s, opacity .15s, background .15s; }
+  button:active { transform: scale(.96); }
+  button:disabled { opacity: .3; pointer-events: none; }
+  button.primary { background: var(--accent); color: var(--on-accent); }
+  button.ghost { background: transparent; color: var(--muted); }
+  button.icon { min-height: 40px; width: 40px; padding: 0; flex: none; border-radius: 50%; }
+  button.text { min-height: 36px; padding: 0 12px; font-size: 14px; }
+  svg { width: 22px; height: 22px; fill: currentColor; flex: none; }
+  input[type=url], input[type=text] { width: 100%; min-height: 48px; padding: 0 14px; border: 1px solid var(--line); border-radius: 12px;
+           background: var(--bg); outline: none; }
+  input[type=url]:focus, input[type=text]:focus { border-color: var(--accent); }
+  input[type=range] { width: 100%; height: 28px; accent-color: var(--accent); margin: 0; }
   .row { display: flex; gap: 8px; align-items: center; }
-  .row > * { flex: 1; min-width: 0; }
-  button, select, input { font: inherit; color: inherit; }
-  button { min-height: 44px; padding: 0 12px; border: 0; border-radius: 10px; background: var(--btn); cursor: pointer; touch-action: manipulation; }
-  button:disabled { opacity: .35; }
-  button.primary, .seg button.on { background: var(--accent); color: var(--on-accent); }
-  button.sm { min-height: 40px; min-width: 40px; padding: 0 8px; flex: none; }
-  input[type=url], input[type=text], select { width: 100%; min-height: 44px; padding: 0 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); }
-  input[type=range] { width: 100%; height: 32px; accent-color: var(--accent); margin: 0; }
-  .seg { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 12px; }
-  .seg button { font-weight: 600; }
-  #title { font-weight: 600; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-  #time { color: var(--muted); font-size: 14px; font-variant-numeric: tabular-nums; }
-  .ctl button { font-size: 20px; }
+  .row > .grow { flex: 1; min-width: 0; }
+
+  /* now playing */
+  #np .state { font-size: 13px; font-weight: 700; color: var(--accent); letter-spacing: .02em; }
+  #np .title { font-size: 19px; font-weight: 700; letter-spacing: -.015em; margin: 4px 0 12px; min-height: 2.9em;
+               overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  #np .times { display: flex; justify-content: space-between; color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; margin-top: 2px; }
+  .ctl { display: flex; align-items: center; justify-content: space-between; margin: 10px 0 6px; }
+  .ctl button { background: transparent; width: 52px; height: 52px; padding: 0; border-radius: 50%; }
+  .ctl button svg { width: 30px; height: 30px; }
+  .ctl .sm svg { width: 22px; height: 22px; }
+  .ctl .sm { color: var(--muted); }
+  .ctl #pp { width: 72px; height: 72px; background: var(--accent); color: var(--on-accent); }
+  .ctl #pp svg { width: 36px; height: 36px; }
+  .vol { display: flex; align-items: center; gap: 10px; }
+  .vol output { width: 32px; text-align: right; color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; }
+
+  /* segmented profile picker */
+  .seg { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; padding: 4px; background: var(--btn); border-radius: 14px; margin-bottom: 12px; }
+  .seg button { min-height: 40px; background: transparent; border-radius: 10px; color: var(--muted); }
+  .seg button.on { background: var(--card); color: var(--fg); box-shadow: 0 1px 3px rgb(0 0 0 / .12); }
+
+  /* lists */
   ul.list { list-style: none; margin: 0; padding: 0; }
-  ul.list li { display: flex; align-items: center; gap: 6px; padding: 4px 0; border-top: 1px solid var(--line); }
+  ul.list li { display: flex; align-items: center; gap: 2px; min-height: 52px; border-top: 1px solid var(--line); }
   ul.list li:first-child { border-top: 0; }
-  ul.list .t { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 8px 0; }
-  ul.list li.cur .t { font-weight: 700; color: var(--accent); }
-  ul.list .n { color: var(--muted); font-size: 14px; }
-  .empty { color: var(--muted); padding: 8px 0; }
-  .msg { color: var(--muted); font-size: 14px; min-height: 1.4em; margin-top: 6px; overflow-wrap: anywhere; }
-  .stack > * + * { margin-top: 8px; }
+  ul.list .main { flex: 1; min-width: 0; display: flex; align-items: center; gap: 12px; padding: 6px 0; cursor: pointer; }
+  ul.list .no { width: 22px; flex: none; text-align: center; color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; }
+  ul.list .no svg { width: 18px; height: 18px; color: var(--accent); }
+  ul.list .t { flex: 1; min-width: 0; overflow: hidden; overflow-wrap: anywhere; font-size: 15px; line-height: 1.35;
+               display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+  ul.list .sub { display: block; color: var(--muted); font-size: 13px; }
+  ul.list li.cur .t { color: var(--accent); font-weight: 700; }
+  ul.list li button.icon { color: var(--muted); background: transparent; width: 36px; }
+  ul.list li button.icon svg { width: 20px; height: 20px; }
+  .more { width: 100%; margin-top: 6px; color: var(--accent); background: var(--accent-soft); }
+  ul.list li button.icon.play { color: var(--accent); }
+  .empty { color: var(--muted); text-align: center; padding: 18px 0; font-size: 15px; }
+  details summary { list-style: none; cursor: pointer; display: flex; align-items: center; }
+  details summary::-webkit-details-marker { display: none; }
+  details summary::after { content: "›"; color: var(--muted); font-size: 22px; transform: rotate(90deg); transition: transform .2s; }
+  details[open] summary::after { transform: rotate(-90deg); }
+  details[open] summary { margin-bottom: 12px; }
+  .note { color: var(--muted); font-size: 13px; margin-top: 8px; overflow-wrap: anywhere; }
+  .gap { margin-top: 10px; }
+
+  #toast { position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom)); transform: translate(-50%, 20px); opacity: 0;
+           background: var(--fg); color: var(--bg); padding: 10px 18px; border-radius: 999px; font-size: 14px; font-weight: 600;
+           max-width: calc(100% - 32px); pointer-events: none; transition: opacity .2s, transform .2s; }
+  #toast.show { opacity: 1; transform: translate(-50%, 0); }
+  #toast.err { background: var(--danger); color: #fff; }
 </style>
 </head>
 <body>
 <main>
-<h1>rpi2 speaker</h1>
-<div class="seg" id="prof"></div>
+<header><span class="dot" id="dot"></span><h1>rpi2 speaker</h1></header>
 
-<section class="card stack">
-  <div id="title">정지됨</div>
-  <input type="range" id="pos" min="0" max="0" step="1" aria-label="재생 위치" onchange="post('/api/seek',{time:this.value})">
-  <div id="time"></div>
-  <div class="row ctl">
-    <button onclick="post('/api/prev')" aria-label="이전">⏮</button>
-    <button class="primary" onclick="post('/api/pause')" aria-label="재생/일시정지">⏯</button>
-    <button onclick="post('/api/next')" aria-label="다음">⏭</button>
-    <button onclick="post('/api/stop')" aria-label="정지">⏹</button>
+<section class="card" id="np">
+  <div class="state" id="state">정지됨</div>
+  <div class="title" id="title">재생 중인 곡이 없어요</div>
+  <input type="range" id="pos" min="0" max="0" step="1" aria-label="재생 위치" onchange="post('/api/seek',{time:+this.value})">
+  <div class="times"><span id="cur">0:00</span><span id="dur">0:00</span></div>
+  <div class="ctl">
+    <button class="sm" onclick="post('/api/stop')" aria-label="정지" data-i="stop"></button>
+    <button onclick="post('/api/prev')" aria-label="이전 곡" data-i="prev"></button>
+    <button id="pp" onclick="post('/api/pause')" aria-label="재생/일시정지" data-i="play"></button>
+    <button onclick="post('/api/next')" aria-label="다음 곡" data-i="next"></button>
+    <button class="sm" id="mute" onclick="post('/api/mute')" aria-label="음소거" data-i="vol"></button>
   </div>
-  <div class="row">
-    <button id="mute" class="sm" onclick="post('/api/mute')" aria-label="음소거">🔊</button>
-    <input type="range" id="vol" min="0" max="100" aria-label="볼륨" onchange="post('/api/volume',{volume:this.value})">
+  <div class="vol">
+    <span data-i="volLow" style="color:var(--muted)"></span>
+    <input type="range" id="vol" min="0" max="100" aria-label="볼륨"
+           oninput="volOut.value=this.value" onchange="post('/api/volume',{volume:+this.value})">
+    <output id="volOut">0</output>
   </div>
 </section>
 
 <section class="card">
-  <form class="stack" onsubmit="post('/api/play',{url:url.value});return false">
-    <input type="url" id="url" placeholder="YouTube / YouTube Music / 스트림 URL" required>
-    <div class="row">
-      <button class="primary">바로 재생</button>
-      <button type="button" onclick="url.reportValidity()&&post('/api/queue',{url:url.value})">큐에 추가</button>
+  <div class="head"><h2>노래 추가</h2></div>
+  <form onsubmit="addUrl(false);return false">
+    <input type="url" id="url" placeholder="YouTube 링크 붙여넣기" required autocomplete="off">
+    <div class="row gap">
+      <button class="primary grow" data-i="play">지금 재생</button>
+      <button type="button" class="grow" onclick="addUrl(true)" data-i="add">대기열에 추가</button>
     </div>
   </form>
+  <div class="note">재생목록·믹스 링크는 앞 50곡까지 큐에 들어가요.</div>
 </section>
 
 <section class="card">
-  <div class="head"><h2>큐</h2><button class="sm" onclick="post('/api/clear')">비우기</button></div>
+  <div class="head"><h2>재생 대기열<small id="qcount"></small></h2>
+    <button class="ghost text" id="qclear" onclick="clearQueue()">모두 지우기</button></div>
   <ul class="list" id="queue"></ul>
+  <button type="button" class="more text" id="qmore" hidden onclick="qOpen=!qOpen;$('queue').dataset.key='';renderQueue(lastQueue)"></button>
 </section>
 
 <section class="card">
-  <div class="head"><h2 id="plhead">플레이리스트</h2></div>
+  <div class="head"><h2>플레이리스트</h2></div>
+  <div class="seg" id="prof" role="tablist" aria-label="프로필"></div>
   <form class="row" onsubmit="savePl();return false">
-    <input type="text" id="plname" placeholder="새 플레이리스트 이름" maxlength="50" required>
-    <button class="sm primary">현재 큐 저장</button>
+    <input type="text" id="plname" class="grow" placeholder="이름을 정해 지금 대기열 저장" maxlength="50" required autocomplete="off">
+    <button class="primary" data-i="save">저장</button>
   </form>
-  <div class="msg" id="plmsg"></div>
-  <ul class="list" id="pls"></ul>
+  <ul class="list gap" id="pls"></ul>
 </section>
 
-<section class="card">
-  <div class="head"><h2>로컬 파일</h2></div>
+<section class="card" id="filesCard" hidden>
+  <div class="head"><h2>내 음악 파일</h2></div>
   <ul class="list" id="files"></ul>
 </section>
 
-<section class="card stack">
-  <div class="head"><h2>시스템</h2></div>
+<details class="card">
+  <summary><h2>시스템</h2></summary>
   <div class="row">
-    <button id="upd" onclick="update()">yt-dlp 업데이트</button>
-    <button onclick="if(confirm('재부팅할까요?'))post('/api/reboot')">재부팅</button>
+    <button class="grow" id="upd" onclick="update()">yt-dlp 업데이트</button>
+    <button class="grow" onclick="confirm('스피커를 재부팅할까요?')&&post('/api/reboot')">재부팅</button>
   </div>
-  <div class="msg" id="sys"></div>
-</section>
+  <div class="note" id="sys">YouTube 재생이 안 될 때 yt-dlp를 업데이트해 보세요.</div>
+</details>
 </main>
+<div id="toast" role="status" aria-live="polite"></div>
 <script>
-let profile = null, playlists = {};
-try { profile = localStorage.getItem('profile'); } catch (e) {}
+const $ = id => document.getElementById(id);
+const ICONS = {
+  play: 'M8 5.14v13.72c0 .79.87 1.27 1.54.84l10.8-6.86a1 1 0 0 0 0-1.68L9.54 4.3A1 1 0 0 0 8 5.14z',
+  pause: 'M7 4h3a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1zm7 0h3a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-3a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z',
+  prev: 'M6 5a1 1 0 0 1 1 1v4.6l10.47-6.3A1 1 0 0 1 19 5.15v13.7a1 1 0 0 1-1.53.85L7 13.4V18a1 1 0 1 1-2 0V6a1 1 0 0 1 1-1z',
+  next: 'M18 5a1 1 0 0 0-1 1v4.6L6.53 4.3A1 1 0 0 0 5 5.15v13.7a1 1 0 0 0 1.53.85L17 13.4V18a1 1 0 1 0 2 0V6a1 1 0 0 0-1-1z',
+  stop: 'M7 6h10a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1z',
+  vol: 'M11 5.07v13.86a.75.75 0 0 1-1.24.57L5.7 16H3a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1h2.7l4.06-3.5a.75.75 0 0 1 1.24.57zM15.5 8.2a1 1 0 0 1 1.41 0 5.5 5.5 0 0 1 0 7.6 1 1 0 1 1-1.43-1.4 3.5 3.5 0 0 0 0-4.8 1 1 0 0 1 .02-1.4zm2.8-2.8a1 1 0 0 1 1.42 0 9.5 9.5 0 0 1 0 13.2 1 1 0 0 1-1.43-1.4 7.5 7.5 0 0 0 0-10.4 1 1 0 0 1 .01-1.4z',
+  mute: 'M11 5.07v13.86a.75.75 0 0 1-1.24.57L5.7 16H3a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1h2.7l4.06-3.5a.75.75 0 0 1 1.24.57zM15.3 9.3a1 1 0 0 1 1.4 0l1.3 1.29 1.3-1.3a1 1 0 1 1 1.4 1.42L19.42 12l1.3 1.3a1 1 0 0 1-1.42 1.4L18 13.42l-1.3 1.3a1 1 0 0 1-1.4-1.42L16.58 12l-1.3-1.3a1 1 0 0 1 0-1.4z',
+  volLow: 'M13 5.07v13.86a.75.75 0 0 1-1.24.57L7.7 16H5a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1h2.7l4.06-3.5a.75.75 0 0 1 1.24.57zM17.5 8.2a1 1 0 0 1 1.41 0 5.5 5.5 0 0 1 0 7.6 1 1 0 1 1-1.43-1.4 3.5 3.5 0 0 0 0-4.8 1 1 0 0 1 .02-1.4z',
+  add: 'M12 4a1 1 0 0 1 1 1v6h6a1 1 0 1 1 0 2h-6v6a1 1 0 1 1-2 0v-6H5a1 1 0 1 1 0-2h6V5a1 1 0 0 1 1-1z',
+  up: 'M12 7.5a1 1 0 0 1 .7.3l6 6a1 1 0 0 1-1.4 1.4L12 9.92l-5.3 5.3a1 1 0 0 1-1.4-1.42l6-6a1 1 0 0 1 .7-.29z',
+  down: 'M12 16.5a1 1 0 0 1-.7-.3l-6-6a1 1 0 0 1 1.4-1.4L12 14.08l5.3-5.3a1 1 0 1 1 1.4 1.42l-6 6a1 1 0 0 1-.7.29z',
+  x: 'M6.3 6.3a1 1 0 0 1 1.4 0L12 10.58l4.3-4.3a1 1 0 1 1 1.4 1.42L13.42 12l4.3 4.3a1 1 0 0 1-1.42 1.4L12 13.42l-4.3 4.3a1 1 0 0 1-1.4-1.42L10.58 12 6.3 7.7a1 1 0 0 1 0-1.4z',
+  trash: 'M9 3h6a1 1 0 0 1 1 1v1h4a1 1 0 1 1 0 2h-1l-.87 12.2A2 2 0 0 1 16.14 21H7.86a2 2 0 0 1-2-1.8L5 7H4a1 1 0 0 1 0-2h4V4a1 1 0 0 1 1-1zm-1.99 4 .85 12h8.28l.85-12H7.01zM10 9a1 1 0 0 1 1 1v6a1 1 0 1 1-2 0v-6a1 1 0 0 1 1-1zm4 0a1 1 0 0 1 1 1v6a1 1 0 1 1-2 0v-6a1 1 0 0 1 1-1z',
+  save: 'M6 3h9.59a1 1 0 0 1 .7.3l3.42 3.4a1 1 0 0 1 .29.71V19a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zm0 2v14h12V7.83L15.17 5H15v3a1 1 0 0 1-1 1H9a1 1 0 0 1-1-1V5H6zm4 0v2h3V5h-3zm2 7a3 3 0 1 1 0 6 3 3 0 0 1 0-6z',
+  bars: 'M5 10h2v9H5zm4-5h2v14H9zm4 7h2v7h-2zm4-4h2v11h-2z',
+};
+function icon(name) {
+  const s = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  s.setAttribute('viewBox', '0 0 24 24'); s.setAttribute('aria-hidden', 'true');
+  const p = document.createElementNS('http://www.w3.org/2000/svg', 'path'); p.setAttribute('d', ICONS[name]);
+  s.appendChild(p); return s;
+}
+function setIcon(e, name) { if (e.dataset.cur !== name) { e.dataset.cur = name; e.querySelector('svg')?.remove(); e.prepend(icon(name)); } }
+document.querySelectorAll('[data-i]').forEach(e => setIcon(e, e.dataset.i));
 
 function el(tag, text, cls) { const e = document.createElement(tag); if (text != null) e.textContent = text; if (cls) e.className = cls; return e; }
-function btn(text, f, label) { const b = el('button', text, 'sm'); b.type = 'button'; b.onclick = f; if (label) b.setAttribute('aria-label', label); return b; }
-function row(title, ...buttons) { const li = el('li'); li.append(el('span', title, 't'), ...buttons); return li; }
+function ibtn(name, label, f, cls) {
+  const b = el('button', null, 'icon' + (cls ? ' ' + cls : '')); b.type = 'button';
+  b.setAttribute('aria-label', label); b.title = label; b.appendChild(icon(name));
+  b.onclick = e => { e.stopPropagation(); f(); }; return b;
+}
+// list row: left marker, title (+ optional subtitle), trailing icon buttons; tapping the body runs onTap
+function row(marker, title, sub, onTap, ...buttons) {
+  const li = el('li'), main = el('div', null, 'main'), t = el('span', title, 't');
+  if (sub) t.appendChild(el('span', sub, 'sub'));
+  main.append(marker, t); if (onTap) main.onclick = onTap;
+  li.append(main, ...buttons); return li;
+}
 
-async function post(p, body) {
-  const r = await fetch(p, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body || {})});
-  show(await r.json());
+let toastTimer;
+function toast(msg, err) {
+  const t = $('toast'); t.textContent = msg; t.className = 'show' + (err ? ' err' : '');
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.className = err ? 'err' : '', 2200);
 }
-async function update() {
-  upd.disabled = true; sys.textContent = '업데이트 중... (수 분 소요)';
-  const r = await (await fetch('/api/update', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{}'})).json();
-  sys.textContent = r.ok ? 'yt-dlp ' + r.version : '실패: ' + (r.error || r.log);
-  upd.disabled = false;
+async function api(p, body) {
+  try {
+    const r = await (await fetch(p, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body || {})})).json();
+    if (r.error) { toast('오류: ' + r.error, true); return null; }
+    return r;
+  } catch (e) { toast('스피커에 연결할 수 없어요', true); return null; }
 }
-function fmt(s) { s = Math.floor(s || 0); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); }
+async function post(p, body, msg) { const r = await api(p, body); if (r) { show(r); if (msg) toast(msg); } return r; }
+
+function fmt(s) {
+  s = Math.floor(s || 0); const h = Math.floor(s / 3600), m = Math.floor(s / 60) % 60, x = String(s % 60).padStart(2, '0');
+  return h ? h + ':' + String(m).padStart(2, '0') + ':' + x : m + ':' + x;
+}
 function show(s) {
-  if (s.error) { title.textContent = '오류: ' + s.error; return; }
   if (!('idle' in s)) return;
-  title.textContent = s.idle ? '정지됨' : (s.paused ? '⏸ ' : '▶ ') + s.title;
-  time.textContent = s.idle ? '' : fmt(s.time) + ' / ' + fmt(s.duration);
+  const loading = !s.idle && !s.duration;
+  $('dot').className = 'dot' + (!s.idle && !s.paused ? ' live' : '');
+  $('state').textContent = s.idle ? '정지됨' : loading ? '불러오는 중…' : s.paused ? '일시정지' : '재생 중';
+  $('title').textContent = s.idle ? '재생 중인 곡이 없어요' : loading && /^https?:/.test(s.title) ? '잠시만 기다려 주세요' : s.title;
+  setIcon($('pp'), !s.idle && !s.paused ? 'pause' : 'play');
+  const pos = $('pos'), vol = $('vol');
   pos.max = Math.floor(s.duration || 0); pos.disabled = !pos.max;
   if (document.activeElement !== pos) pos.value = Math.floor(s.time || 0);
-  if (document.activeElement !== vol) vol.value = s.volume;
-  mute.textContent = s.mute ? '🔇' : '🔊';
-  const key = JSON.stringify(s.queue);
-  if (key !== queue.dataset.key) {
-    queue.dataset.key = key; queue.innerHTML = '';
-    if (!s.queue.length) queue.appendChild(el('li', '비어 있음', 'empty'));
-    s.queue.forEach((q, i) => {
-      const up = btn('▲', () => post('/api/move', {from: i, to: i - 1}), '위로');
-      const down = btn('▼', () => post('/api/move', {from: i, to: i + 1}), '아래로');
-      up.disabled = i === 0; down.disabled = i === s.queue.length - 1;
-      const li = row(q.title, up, down, btn('✕', () => post('/api/remove', {index: i}), '삭제'));
-      if (q.current) li.className = 'cur';
-      queue.appendChild(li);
-    });
-  }
+  $('cur').textContent = fmt(s.time); $('dur').textContent = fmt(s.duration);
+  if (document.activeElement !== vol) { vol.value = s.volume; $('volOut').value = Math.round(s.volume); }
+  setIcon($('mute'), s.mute ? 'mute' : 'vol');
+  renderQueue(s.queue);
+}
+// long queues (mixes are 50 tracks) collapse to a window around the current track
+const QWIN = 6;
+let qOpen = false, lastQueue = [];
+function renderQueue(q) {
+  lastQueue = q;
+  const ul = $('queue'), key = JSON.stringify(q);
+  if (key === ul.dataset.key) return;
+  ul.dataset.key = key; ul.innerHTML = '';
+  $('qcount').textContent = q.length ? q.length + '곡' : '';
+  $('qclear').hidden = !q.length;
+  if (!q.length) ul.appendChild(el('li', '대기열이 비어 있어요. 위에서 노래를 추가해 보세요.', 'empty'));
+  const cur = Math.max(0, q.findIndex(x => x.current));
+  const from = qOpen ? 0 : Math.max(0, Math.min(cur - 1, q.length - QWIN)), to = qOpen ? q.length : from + QWIN;
+  $('qmore').hidden = q.length <= QWIN;
+  $('qmore').textContent = qOpen ? '접기' : `전체 ${q.length}곡 보기`;
+  q.forEach((item, i) => {
+    if (i < from || i >= to) return;
+    const marker = el('span', item.current ? null : String(i + 1), 'no');
+    if (item.current) marker.appendChild(icon('bars'));
+    const up = ibtn('up', '위로', () => post('/api/move', {from: i, to: i - 1}));
+    const down = ibtn('down', '아래로', () => post('/api/move', {from: i, to: i + 1}));
+    up.disabled = i === 0; down.disabled = i === q.length - 1;
+    const li = row(marker, item.title, null, () => post('/api/jump', {index: i}), up, down,
+                   ibtn('x', '대기열에서 빼기', () => post('/api/remove', {index: i})));
+    if (item.current) li.className = 'cur';
+    ul.appendChild(li);
+  });
+}
+function addUrl(next) {
+  const u = $('url'); if (!u.reportValidity()) return;
+  post(next ? '/api/queue' : '/api/play', {url: u.value}, next ? '대기열에 추가했어요' : '곧 재생돼요')
+    .then(r => { if (r) u.value = ''; });
+}
+function clearQueue() {
+  if (confirm('대기열을 모두 지울까요? (지금 곡은 남아요)')) post('/api/clear', {}, '대기열을 비웠어요');
+}
+async function update() {
+  const b = $('upd'), out = $('sys');
+  b.disabled = true; out.textContent = '업데이트 중… (몇 분 걸려요)';
+  const r = await api('/api/update');
+  out.textContent = r ? (r.ok ? '완료: yt-dlp ' + r.version : '실패: ' + r.log) : '실패';
+  b.disabled = false;
 }
 
+let profile = null, playlists = {};
+try { profile = localStorage.getItem('profile'); } catch (e) {}
 function setProfile(p) {
   profile = p;
   try { localStorage.setItem('profile', p); } catch (e) {}
-  for (const b of prof.children) b.className = b.textContent === p ? 'on' : '';
-  plhead.textContent = p + '의 플레이리스트';
-  plmsg.textContent = '';
+  for (const b of $('prof').children) { const on = b.textContent === p; b.className = on ? 'on' : ''; b.setAttribute('aria-selected', on); }
   renderPls();
   // another phone may have changed playlists since load
   fetch('/api/playlists').then(r => r.json()).then(d => { playlists = d.playlists; renderPls(); });
 }
 function renderPls() {
-  pls.innerHTML = '';
+  const ul = $('pls'); ul.innerHTML = '';
   const mine = playlists[profile] || {};
   const names = Object.keys(mine).sort((a, b) => a.localeCompare(b, 'ko'));
-  if (!names.length) pls.appendChild(el('li', '저장된 플레이리스트 없음', 'empty'));
+  if (!names.length) ul.appendChild(el('li', profile + '의 플레이리스트가 없어요. 대기열을 저장해 보세요.', 'empty'));
   for (const n of names) {
-    const li = row(n,
-      btn('▶', () => post('/api/playlist/play', {profile, name: n}), '재생'),
-      btn('+큐', () => post('/api/playlist/play', {profile, name: n, append: true}), '큐에 추가'),
-      btn('✕', () => confirm(`'${n}' 삭제할까요?`) && plPost('/api/playlist/delete', {profile, name: n}), '삭제'));
-    li.querySelector('.t').append(' ', el('span', mine[n].length + '곡', 'n'));
-    pls.appendChild(li);
+    const play = () => post('/api/playlist/play', {profile, name: n}, `'${n}' 재생`);
+    ul.appendChild(row(el('span', null, 'no'), n, mine[n].length + '곡', play,
+      ibtn('play', '재생 (대기열 바꾸기)', play, 'play'),
+      ibtn('add', '대기열 끝에 추가', () => post('/api/playlist/play', {profile, name: n, append: true}, `'${n}' 대기열에 추가`)),
+      ibtn('trash', '삭제', () => confirm(`'${n}' 플레이리스트를 삭제할까요?`) && plPost('/api/playlist/delete', {profile, name: n}, '삭제했어요'))));
   }
 }
-async function plPost(p, body) {
-  const r = await (await fetch(p, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)})).json();
-  if (r.error) { plmsg.textContent = '오류: ' + r.error; return false; }
-  playlists = r; renderPls(); return true;
+async function plPost(p, body, msg) {
+  const r = await api(p, body);
+  if (r) { playlists = r; renderPls(); toast(msg); }
+  return r;
 }
 async function savePl() {
-  const n = plname.value.trim();
+  const inp = $('plname'), n = inp.value.trim();
   if (!n) return;
-  if ((playlists[profile] || {})[n] && !confirm(`'${n}'을(를) 현재 큐로 덮어쓸까요?`)) return;
-  if (await plPost('/api/playlist/save', {profile, name: n})) { plname.value = ''; plmsg.textContent = `'${n}' 저장됨`; }
+  if ((playlists[profile] || {})[n] && !confirm(`'${n}'을(를) 지금 대기열로 덮어쓸까요?`)) return;
+  if (await plPost('/api/playlist/save', {profile, name: n}, `${profile}: '${n}' 저장했어요`)) inp.value = '';
 }
 
 fetch('/api/playlists').then(r => r.json()).then(d => {
   playlists = d.playlists;
-  for (const p of d.profiles) { const b = el('button', p); b.type = 'button'; b.onclick = () => setProfile(p); prof.appendChild(b); }
+  for (const p of d.profiles) {
+    const b = el('button', p); b.type = 'button'; b.setAttribute('role', 'tab'); b.onclick = () => setProfile(p);
+    $('prof').appendChild(b);
+  }
   setProfile(d.profiles.includes(profile) ? profile : d.profiles[0]);
 });
 fetch('/api/files').then(r => r.json()).then(fs => {
-  if (!fs.length) files.appendChild(el('li', '없음', 'empty'));
+  $('filesCard').hidden = !fs.length;
   for (const f of fs) {
-    files.appendChild(row(f, btn('▶', () => post('/api/play', {url: f}), '재생'),
-                             btn('+큐', () => post('/api/queue', {url: f}), '큐에 추가')));
+    const play = () => post('/api/play', {url: f}, '곧 재생돼요');
+    $('files').appendChild(row(el('span', null, 'no'), f.split('/').pop(), f.includes('/') ? f.slice(0, f.lastIndexOf('/')) : null, play,
+      ibtn('play', '지금 재생', play, 'play'), ibtn('add', '대기열에 추가', () => post('/api/queue', {url: f}, '대기열에 추가했어요'))));
   }
 });
-const poll = () => fetch('/api/status').then(r => r.json()).then(show);
+const poll = () => fetch('/api/status').then(r => r.json()).then(show, () => $('dot').className = 'dot');
 poll(); setInterval(poll, 2000);
 </script>
 </body>

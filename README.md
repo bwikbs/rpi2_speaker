@@ -38,6 +38,7 @@ POST는 `Content-Type: application/json` 헤더가 있어야 하고, 브라우�
 | POST | `/api/play` | `{"url": "<URL 또는 MUSIC_DIR 상대경로>"}` 현재 곡 다음에 넣고 바로 재생 (큐 유지) |
 | POST | `/api/queue` | `{"url": ...}` 큐 끝에 추가 (정지 상태면 바로 재생) |
 | POST | `/api/next` / `/api/prev` | |
+| POST | `/api/jump` | `{"index": n}` 큐의 n번째 곡 재생 |
 | POST | `/api/remove` | `{"index": n}` |
 | POST | `/api/move` | `{"from": n, "to": m}` m은 이동 후 위치 |
 | POST | `/api/clear` | |
@@ -54,7 +55,7 @@ POST는 `Content-Type: application/json` 헤더가 있어야 하고, 브라우�
 
 재부팅·업데이트는 `install.sh`가 `/etc/sudoers.d/rpi2-speaker`에 등록한 두 명령에 한해 비밀번호 없이 sudo로 실행된다.
 
-프로필은 아빠·엄마·지민·지훈 4개(`speaker.py`의 `PROFILES`)이며, 프로필별 플레이리스트는 `playlists.json`에 저장된다. 선택한 프로필은 각 폰 브라우저에 기억된다.
+프로필은 지훈·아빠·지민·엄마 4개(`speaker.py`의 `PROFILES`)이며, 프로필별 플레이리스트는 `playlists.json`에 저장된다. 선택한 프로필은 각 폰 브라우저에 기억된다.
 
 출력은 항상 3.5mm 헤드폰 잭이다 (환경변수 `AUDIO_DEVICE`로 변경 가능, 기본 `alsa/default:CARD=Headphones`). YouTube 믹스/재생목록 URL(`watch?v=..&list=..`)은 앞 50곡이 큐에 들어간다.
 

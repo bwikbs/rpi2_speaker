@@ -109,9 +109,23 @@ with tempfile.TemporaryDirectory() as d:
     speaker.STATE = Path(d) / "state.json"
     speaker.save_state(volume=5)
     speaker.save_queue()
-    assert speaker.load_state() == {"volume": 5, "queue": ["a"], "pos": -1}
+    assert speaker.load_state() == {"volume": 5, "queue": ["a"], "pos": -1, "titles": {}}
     mtime = speaker.STATE.stat().st_mtime_ns
     speaker.save_queue()
     assert speaker.STATE.stat().st_mtime_ns == mtime
 print("ok play_now/save_queue")
 
+
+# titles survive a restart: learned from playlist entries, used when mpv no longer knows them
+speaker.TITLES.clear()
+props["playlist"] = [{"filename": "https://y/a", "title": "Song A"}, {"filename": "https://y/b"}]
+with tempfile.TemporaryDirectory() as d:
+    speaker.STATE = Path(d) / "state.json"
+    speaker.save_queue()
+    assert speaker.load_state()["titles"] == {"https://y/a": "Song A"}
+assert speaker.title_of({"filename": "https://y/a"}) == "Song A"
+assert speaker.title_of({"filename": "https://y/b"}) == "https://y/b"
+speaker.TITLE_CAP = 1
+speaker.remember_titles([{"filename": "https://y/c", "title": "C"}])
+assert speaker.TITLES == {"https://y/c": "C"}
+print("ok titles")
