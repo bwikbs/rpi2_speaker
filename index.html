@@ -96,7 +96,6 @@
 
 <section class="card stack">
   <div class="head"><h2>시스템</h2></div>
-  <select id="dev" aria-label="출력 장치" onchange="post('/api/device',{device:this.value})"></select>
   <div class="row">
     <button id="upd" onclick="update()">yt-dlp 업데이트</button>
     <button onclick="if(confirm('재부팅할까요?'))post('/api/reboot')">재부팅</button>
@@ -132,11 +131,6 @@ function show(s) {
   if (document.activeElement !== pos) pos.value = Math.floor(s.time || 0);
   if (document.activeElement !== vol) vol.value = s.volume;
   mute.textContent = s.mute ? '🔇' : '🔊';
-  if (s.devices && dev.length !== s.devices.length) {
-    dev.innerHTML = '';
-    for (const d of s.devices) { const o = el('option', d.description); o.value = d.name; dev.appendChild(o); }
-  }
-  if (document.activeElement !== dev) dev.value = s.device;
   const key = JSON.stringify(s.queue);
   if (key !== queue.dataset.key) {
     queue.dataset.key = key; queue.innerHTML = '';

@@ -13,10 +13,13 @@ from pathlib import Path
 MUSIC_DIR = Path(os.environ.get("MUSIC_DIR", "/mnt/music"))
 PORT = int(os.environ.get("PORT", "8080"))
 SOCK = os.environ.get("MPV_SOCK", "/tmp/rpi2_speaker.sock")
+# Always the 3.5mm jack. "auto" lands on HDMI, which fails (error 524) with no monitor attached.
+AUDIO_DEVICE = os.environ.get("AUDIO_DEVICE", "alsa/default:CARD=Headphones")
+MIX_LIMIT = 50  # YouTube mixes (list=RD...) run to hundreds of entries; queue only the first ones
 UPDATE_CMD = ["pip3", "install", "-U", "yt-dlp", "--break-system-packages"]
 AUDIO_EXT = {".mp3", ".flac", ".m4a", ".wav", ".ogg", ".opus", ".aac"}
 HTML = (Path(__file__).parent / "index.html").read_bytes()
-STATE = Path(__file__).parent / "state.json"  # audio device + volume + queue, survives reboot
+STATE = Path(__file__).parent / "state.json"  # volume + queue, survives reboot
 WATCH_DIR = Path(__file__).parent / "watch_later"  # per-file resume position (mpv native)
 PLAYLISTS = Path(__file__).parent / "playlists.json"  # {profile: {name: [url, ...]}}
 PROFILES = ["아빠", "엄마", "지민", "지훈"]
@@ -191,32 +194,6 @@ def watchdog(proc):
     os._exit(1)
 
 
-def outputs(devs):
-    """One entry per ALSA card, named for humans. mpv also lists jack/sdl/sndio and 'auto',
-    which on a headless Pi end up on a dead JACK server or a monitor-less HDMI (error 524)."""
-    out = []
-    for d in devs:
-        if not d["name"].startswith("alsa/default:CARD="):
-            continue
-        card = d["name"].split("=", 1)[1]
-        if card == "Headphones":
-            label = "3.5mm 헤드폰 잭"
-        elif "hdmi" in card.lower():
-            label = "HDMI (" + card + ")"
-        else:
-            label = d["description"].split(",")[0]
-        out.append({"name": d["name"], "description": label})
-    return sorted(out, key=lambda o: o["name"] != "alsa/default:CARD=Headphones")
-
-
-def fix_device(st):
-    """A saved device that is not a real card output (e.g. 'jack', 'auto') plays nothing; fall back."""
-    outs = outputs(mpv_cmd("get_property", "audio-device-list"))
-    if outs and st.get("device") not in [o["name"] for o in outs]:
-        mpv_cmd("set_property", "audio-device", outs[0]["name"])
-        save_state(device=outs[0]["name"])
-
-
 def status():
     return {
         "title": prop("media-title", ""),
@@ -225,8 +202,6 @@ def status():
         "idle": prop("idle-active", True),
         "volume": prop("volume", 0),
         "mute": prop("mute", False),
-        "device": prop("audio-device", "auto"),
-        "devices": outputs(prop("audio-device-list", [])),
         "queue": [{"title": e.get("title") or e["filename"].replace(str(MUSIC_DIR) + "/", ""),
                    "current": e.get("current", False)} for e in prop("playlist", [])],
         "time": prop("time-pos", 0),
@@ -300,11 +275,6 @@ class Handler(BaseHTTPRequestHandler):
                 vol = max(0, min(100, int(body["volume"])))
                 mpv_cmd("set_property", "volume", vol)
                 save_state(volume=vol)
-            elif self.path == "/api/device":
-                if body["device"] not in [o["name"] for o in outputs(mpv_cmd("get_property", "audio-device-list"))]:
-                    raise ValueError("unknown audio device")
-                mpv_cmd("set_property", "audio-device", body["device"])
-                save_state(device=body["device"])
             elif self.path == "/api/update":  # sudoers rule from install.sh; takes minutes on a Pi 2
                 r = subprocess.run(["sudo", "-n"] + UPDATE_CMD, capture_output=True, text=True, timeout=900)
                 ver = subprocess.run(["yt-dlp", "--version"], capture_output=True, text=True).stdout.strip()
@@ -333,7 +303,9 @@ def start_mpv():
          f"--input-ipc-server={SOCK}",
          # resume position per file; written on quit and every 10s (see checkpoint)
          "--save-position-on-quit", "--watch-later-options=start", f"--watch-later-dir={WATCH_DIR}",
-         f"--audio-device={st.get('device', 'auto')}", f"--volume={st.get('volume', 70)}"]
+         # mpv's ytdl_hook passes --no-playlist unless yes-playlist is set, so watch?v=..&list=.. queued one track
+         "--ytdl-raw-options-append=yes-playlist=", f"--ytdl-raw-options-append=playlist-end={MIX_LIMIT}",
+         f"--audio-device={AUDIO_DEVICE}", f"--volume={st.get('volume', 70)}"]
     )
     for _ in range(50):
         if os.path.exists(SOCK):
@@ -345,7 +317,6 @@ def start_mpv():
 if __name__ == "__main__":
     mpv = start_mpv()
     try:
-        fix_device(load_state())
         restore_queue(load_state())
         threading.Thread(target=checkpoint, daemon=True).start()
         threading.Thread(target=watchdog, args=(mpv,), daemon=True).start()

@@ -32,7 +32,7 @@ POST는 `Content-Type: application/json` 헤더가 있어야 하고, 브라우�
 
 | Method | Path | Body |
 |---|---|---|
-| GET | `/api/status` | 현재 곡, 볼륨, 장치, `queue` 포함 |
+| GET | `/api/status` | 현재 곡, 볼륨, `queue` 포함 |
 | GET | `/api/files` | |
 | GET | `/api/playlists` | `{"profiles": [...], "playlists": {프로필: {이름: [url, ...]}}}` |
 | POST | `/api/play` | `{"url": "<URL 또는 MUSIC_DIR 상대경로>"}` 현재 곡 다음에 넣고 바로 재생 (큐 유지) |
@@ -49,7 +49,6 @@ POST는 `Content-Type: application/json` 헤더가 있어야 하고, 브라우�
 | POST | `/api/seek` | `{"time": 초}` |
 | POST | `/api/stop` | |
 | POST | `/api/volume` | `{"volume": 0-100}` |
-| POST | `/api/device` | `{"device": "<status의 devices[].name>"}` ALSA 카드 출력만 허용 |
 | POST | `/api/update` | yt-dlp 최신판 설치 (수 분 소요) |
 | POST | `/api/reboot` | |
 
@@ -57,7 +56,9 @@ POST는 `Content-Type: application/json` 헤더가 있어야 하고, 브라우�
 
 프로필은 아빠·엄마·지민·지훈 4개(`speaker.py`의 `PROFILES`)이며, 프로필별 플레이리스트는 `playlists.json`에 저장된다. 선택한 프로필은 각 폰 브라우저에 기억된다.
 
-오디오 출력 장치(HDMI/3.5mm/USB DAC), 볼륨, 큐와 현재 곡 위치는 `state.json`에, 곡 내 재생 위치는 `watch_later/`에 저장되어 재부팅 후에도 유지된다. 부팅 직후에는 일시정지 상태로 복원된다. 모니터·키보드 없이 동작한다.
+출력은 항상 3.5mm 헤드폰 잭이다 (환경변수 `AUDIO_DEVICE`로 변경 가능, 기본 `alsa/default:CARD=Headphones`). YouTube 믹스/재생목록 URL(`watch?v=..&list=..`)은 앞 50곡이 큐에 들어간다.
+
+볼륨, 큐와 현재 곡 위치는 `state.json`에, 곡 내 재생 위치는 `watch_later/`에 저장되어 재부팅 후에도 유지된다. 부팅 직후에는 일시정지 상태로 복원된다. 모니터·키보드 없이 동작한다.
 
 ## 테스트
 
