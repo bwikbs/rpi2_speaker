@@ -30,6 +30,7 @@ repeat_mode = "off"
 TIMER_MINUTES = {0, 15, 30, 60, 180}  # sleep timer choices; 0 cancels
 sleep_timer = None  # (threading.Timer, monotonic deadline) while a sleep timer is armed
 FILE_LOCK = threading.Lock()  # HTTP handlers run in threads; serialize read-modify-write of state files
+STALL_TICKS = 2  # checkpoints (10 s apart) with time-pos frozen during playback before the audio output is reopened
 
 
 def read_json(path):
@@ -198,15 +199,35 @@ def restore_queue(st):
         mpv_cmd("loadfile", f, "append")
     if st.get("pos", -1) >= 0 and st.get("queue"):
         mpv_cmd("set_property", "pause", True)
+        mpv_cmd("set_property", "resume-playback", True)  # checkpoint turns it off once this track is loaded
         mpv_cmd("playlist-play-index", st["pos"])
 
 
+def unstick_audio(last, ticks):
+    """The bcm2835 jack driver sometimes stops taking samples (ALSA hw_ptr stuck at 0): mpv keeps
+    'playing' with time-pos frozen and no sound. Reopening the audio output recovers it."""
+    pos = prop("time-pos")
+    if pos is None or pos != last or prop("pause", True) or prop("paused-for-cache", False):
+        return pos, 0
+    if ticks + 1 < STALL_TICKS:
+        return pos, ticks + 1
+    print(f"audio stalled at {pos:.1f}s, reloading audio output", flush=True)
+    mpv_cmd("ao-reload")
+    return pos, 0
+
+
 def checkpoint():
+    last, ticks = None, 0
     while True:
         time.sleep(10)
         try:
             mpv_cmd("write-watch-later-config")
             save_queue()  # tracks advance on their own; keep pos current for the next boot
+            # resume only the track interrupted by a restart: with resume on for every file,
+            # repeat-all came back to each track seconds before its end and skipped on
+            if prop("time-pos") is not None:
+                mpv_cmd("set_property", "resume-playback", False)
+            last, ticks = unstick_audio(last, ticks)
         except (RuntimeError, OSError):
             pass
 
@@ -377,6 +398,7 @@ def start_mpv():
          f"--input-ipc-server={SOCK}",
          # resume position per file; written on quit and every 10s (see checkpoint)
          "--save-position-on-quit", "--watch-later-options=start", f"--watch-later-dir={WATCH_DIR}",
+         "--resume-playback=no",  # restore_queue enables it for the one track it resumes
          # mpv's ytdl_hook passes --no-playlist unless yes-playlist is set, so watch?v=..&list=.. queued one track
          "--ytdl-raw-options-append=yes-playlist=", f"--ytdl-raw-options-append=playlist-end={MIX_LIMIT}",
          f"--audio-device={AUDIO_DEVICE}", f"--volume={st.get('volume', 70)}"]

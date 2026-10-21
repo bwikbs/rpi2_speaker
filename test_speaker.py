@@ -52,7 +52,8 @@ calls = []
 speaker.mpv_cmd = lambda *a: calls.append(a)
 speaker.restore_queue({"queue": ["/m/a.mp3", "https://y/x"], "pos": 1})
 assert calls == [("loadfile", "/m/a.mp3", "append"), ("loadfile", "https://y/x", "append"),
-                 ("set_property", "pause", True), ("playlist-play-index", 1)], calls
+                 ("set_property", "pause", True), ("set_property", "resume-playback", True),
+                 ("playlist-play-index", 1)], calls
 calls.clear(); speaker.restore_queue({}); assert calls == []
 print("ok restore")
 
@@ -161,3 +162,23 @@ except ValueError:
 calls.clear(); speaker.set_timer(15); speaker.timer_expired()
 assert calls == [("set_property", "pause", True)] and speaker.timer_left() is None, calls
 print("ok timer")
+
+# stall watchdog: reopen audio only after time-pos stays frozen while playing
+state = {"time-pos": 5.0, "pause": False, "paused-for-cache": False}
+def fake(*a):
+    calls.append(a)
+    return state.get(a[1]) if a[0] == "get_property" else None
+speaker.mpv_cmd = fake
+speaker.STALL_TICKS = 2
+calls.clear()
+last, ticks = speaker.unstick_audio(None, 0)
+assert (last, ticks) == (5.0, 0)
+last, ticks = speaker.unstick_audio(last, ticks)
+assert ticks == 1 and ("ao-reload",) not in calls
+last, ticks = speaker.unstick_audio(last, ticks)
+assert ticks == 0 and ("ao-reload",) in calls
+calls.clear(); state["pause"] = True
+assert speaker.unstick_audio(5.0, 1) == (5.0, 0) and ("ao-reload",) not in calls
+state["pause"] = False; state["time-pos"] = None  # still loading
+assert speaker.unstick_audio(None, 1) == (None, 0)
+print("ok stall")
