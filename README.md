@@ -45,6 +45,9 @@ POST는 `Content-Type: application/json` 헤더가 있어야 하고, 브라우�
 | POST | `/api/playlist/save` | `{"profile": "지민", "name": ...}` 현재 큐를 저장 (같은 이름은 덮어씀) |
 | POST | `/api/playlist/play` | `{"profile", "name", "append": false}` 큐를 교체해 재생, `append`면 큐 끝에 추가 |
 | POST | `/api/playlist/delete` | `{"profile", "name"}` |
+| GET | `/api/alarms` | 모닝콜 목록 `[{"id", "time", "profile", "name", "volume", "on"}, ...]` |
+| POST | `/api/alarm/save` | `{"time": "07:00", "profile", "name", "volume": 40, "on": true}` 모닝콜 추가, `id`를 주면 그 알람을 수정 |
+| POST | `/api/alarm/delete` | `{"id": n}` |
 | POST | `/api/pause` | (토글) |
 | POST | `/api/mute` | (토글) |
 | POST | `/api/timer` | `{"minutes": 15 \| 30 \| 60 \| 180}` 그 시간 뒤 일시정지, `0`은 취소. 남은 초는 status의 `timer` |
@@ -58,6 +61,8 @@ POST는 `Content-Type: application/json` 헤더가 있어야 하고, 브라우�
 재부팅·업데이트는 `install.sh`가 `/etc/sudoers.d/rpi2-speaker`에 등록한 두 명령에 한해 비밀번호 없이 sudo로 실행된다.
 
 프로필은 지훈·아빠·지민·엄마 4개(`speaker.py`의 `PROFILES`)이며, 프로필별 플레이리스트는 `playlists.json`에 저장된다. 선택한 프로필은 각 폰 브라우저에 기억된다.
+
+모닝콜은 `alarms.json`에 저장되며, 켜진 알람은 매일 그 시각(Pi 로컬 시간)에 음소거를 풀고 지정 볼륨으로 대기열을 해당 플레이리스트로 바꿔 재생한다.
 
 출력은 항상 3.5mm 헤드폰 잭이다 (환경변수 `AUDIO_DEVICE`로 변경 가능, 기본 `alsa/default:CARD=Headphones`). YouTube 믹스/재생목록 URL(`watch?v=..&list=..`)은 앞 50곡이 큐에 들어간다.
 

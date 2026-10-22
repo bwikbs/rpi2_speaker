@@ -2,6 +2,7 @@
 """Network speaker for Raspberry Pi 2: mpv backend + tiny web UI. No deps beyond mpv/yt-dlp."""
 import json
 import os
+import re
 import socket
 import subprocess
 import sys
@@ -22,6 +23,7 @@ HTML = (Path(__file__).parent / "index.html").read_bytes()
 STATE = Path(__file__).parent / "state.json"  # volume + queue, survives reboot
 WATCH_DIR = Path(__file__).parent / "watch_later"  # per-file resume position (mpv native)
 PLAYLISTS = Path(__file__).parent / "playlists.json"  # {profile: {name: [url, ...]}}
+ALARMS = Path(__file__).parent / "alarms.json"  # [{id, time "HH:MM", profile, name, volume, on}, ...]
 PROFILES = ["지훈", "아빠", "지민", "엄마"]
 TITLES = {}  # url -> title; mpv forgets titles of queue entries reloaded after a restart
 TITLE_CAP = 1000
@@ -86,6 +88,55 @@ def play_playlist(profile, name, append):
         mpv_cmd("loadfile", u, "append-play" if append or i else "replace")
     if not append:
         mpv_cmd("set_property", "pause", False)
+
+
+def load_alarms():
+    alarms = read_json(ALARMS)
+    return alarms if isinstance(alarms, list) else []
+
+
+def edit_alarm(alarm, delete=False):
+    """Add or replace (same id) an alarm; delete=True removes it. Returns the new list."""
+    with FILE_LOCK:
+        alarms = load_alarms()
+        if delete:
+            alarms = [a for a in alarms if a["id"] != alarm["id"]]
+        else:
+            if not re.fullmatch(r"([01]\d|2[0-3]):[0-5]\d", alarm["time"]):
+                raise ValueError("time must be HH:MM")
+            if alarm["name"] not in load_playlists().get(alarm["profile"], {}):
+                raise ValueError("no such playlist")
+            a = {"id": alarm.get("id") or max((a["id"] for a in alarms), default=0) + 1,
+                 "time": alarm["time"], "profile": alarm["profile"], "name": alarm["name"],
+                 "volume": max(0, min(100, int(alarm.get("volume", 50)))), "on": bool(alarm.get("on", True))}
+            alarms = sorted([x for x in alarms if x["id"] != a["id"]] + [a], key=lambda x: x["time"])
+        write_json(ALARMS, alarms)
+    return alarms
+
+
+def ring(alarm):
+    """Replace the queue with the alarm's playlist at the alarm's volume, unmuted."""
+    print(f"alarm {alarm['time']}: {alarm['profile']} / {alarm['name']}", flush=True)
+    mpv_cmd("set_property", "mute", False)
+    mpv_cmd("set_property", "volume", alarm["volume"])
+    play_playlist(alarm["profile"], alarm["name"], append=False)
+    save_state(volume=alarm["volume"])
+
+
+def alarm_clock():
+    """Check once per minute of local time; every alarm set for that minute rings (the last one wins)."""
+    handled = None
+    while True:
+        minute = time.strftime("%Y-%m-%d %H:%M")
+        if minute != handled:
+            handled = minute
+            for a in load_alarms():
+                if a.get("on") and a.get("time") == minute[-5:]:
+                    try:
+                        ring(a)
+                    except (KeyError, ValueError, RuntimeError, OSError) as e:
+                        print(f"alarm {a.get('time')} failed: {e}", flush=True)
+        time.sleep(5)
 
 
 def read_reply(s, req_id):
@@ -319,6 +370,8 @@ class Handler(BaseHTTPRequestHandler):
             self._json(list_files())
         elif self.path == "/api/playlists":
             self._json({"profiles": PROFILES, "playlists": load_playlists()})
+        elif self.path == "/api/alarms":
+            self._json(load_alarms())
         else:
             self._json({"error": "not found"}, 404)
 
@@ -335,6 +388,10 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(edit_playlist(body["profile"], body["name"], urls))
             elif self.path == "/api/playlist/delete":
                 return self._json(edit_playlist(body["profile"], body["name"], None))
+            elif self.path == "/api/alarm/save":
+                return self._json(edit_alarm(body))
+            elif self.path == "/api/alarm/delete":
+                return self._json(edit_alarm(body, delete=True))
             elif self.path == "/api/playlist/play":
                 play_playlist(body["profile"], body["name"], bool(body.get("append")))
             elif self.path == "/api/play":
@@ -418,6 +475,7 @@ if __name__ == "__main__":
         restore_queue(load_state())
         threading.Thread(target=checkpoint, daemon=True).start()
         threading.Thread(target=watchdog, args=(mpv,), daemon=True).start()
+        threading.Thread(target=alarm_clock, daemon=True).start()
         print(f"listening on :{PORT}, music dir {MUSIC_DIR}")
         ThreadingHTTPServer(("", PORT), Handler).serve_forever()
     finally:

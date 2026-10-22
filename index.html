@@ -100,6 +100,14 @@
   details summary::after { content: "›"; color: var(--muted); font-size: 22px; transform: rotate(90deg); transition: transform .2s; }
   details[open] summary::after { transform: rotate(-90deg); }
   details[open] summary { margin-bottom: 12px; }
+  /* morning call */
+  select, input[type=time] { font: inherit; color: inherit; min-height: 48px; padding: 0 12px; border: 1px solid var(--line);
+           border-radius: 12px; background: var(--bg); outline: none; min-width: 0; }
+  input[type=time] { flex: none; font-variant-numeric: tabular-nums; }
+  ul.list .clock { flex: none; font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
+  ul.list li.off .clock, ul.list li.off .t { color: var(--muted); }
+  button.switch { min-height: 32px; padding: 0 12px; font-size: 13px; border-radius: 999px; flex: none; }
+  button.switch.on { background: var(--accent); color: var(--on-accent); }
   .note { color: var(--muted); font-size: 13px; margin-top: 8px; overflow-wrap: anywhere; }
   .gap { margin-top: 10px; }
 
@@ -165,6 +173,24 @@
     <button class="primary" data-i="save">저장</button>
   </form>
   <ul class="list gap" id="pls"></ul>
+</section>
+
+<section class="card">
+  <div class="head"><h2>모닝콜</h2></div>
+  <form onsubmit="addAlarm();return false">
+    <div class="row">
+      <input type="time" id="atime" value="07:00" required aria-label="시각">
+      <select id="apl" class="grow" required aria-label="플레이리스트"></select>
+    </div>
+    <div class="vol gap">
+      <span class="tlabel" data-i="volLow"></span>
+      <input type="range" id="avol" min="0" max="100" value="40" aria-label="모닝콜 볼륨" oninput="avolOut.value=this.value">
+      <output id="avolOut">40</output>
+    </div>
+    <button class="primary gap" style="width:100%" data-i="add">모닝콜 추가</button>
+  </form>
+  <ul class="list gap" id="alarms"></ul>
+  <div class="note">매일 그 시각에 대기열을 플레이리스트로 바꿔 재생해요.</div>
 </section>
 
 <section class="card" id="filesCard" hidden>
@@ -349,6 +375,7 @@ function setProfile(p) {
   fetch('/api/playlists').then(r => r.json()).then(d => { playlists = d.playlists; renderPls(); });
 }
 function renderPls() {
+  renderAlarmPicker();
   const ul = $('pls'); ul.innerHTML = '';
   const mine = playlists[profile] || {};
   const names = Object.keys(mine).sort((a, b) => a.localeCompare(b, 'ko'));
@@ -366,6 +393,46 @@ async function plPost(p, body, msg) {
   if (r) { playlists = r; renderPls(); toast(msg); }
   return r;
 }
+
+// morning call: daily alarms that replace the queue with a saved playlist
+let alarms = [];
+function renderAlarmPicker() {
+  const sel = $('apl'), keep = sel.value; sel.innerHTML = '';
+  for (const [p, pls] of Object.entries(playlists)) {
+    const names = Object.keys(pls).sort((a, b) => a.localeCompare(b, 'ko'));
+    if (!names.length) continue;
+    const g = el('optgroup'); g.label = p;
+    for (const n of names) { const o = el('option', n); o.value = JSON.stringify([p, n]); g.appendChild(o); }
+    sel.appendChild(g);
+  }
+  if (!sel.children.length) { const o = el('option', '저장된 플레이리스트가 없어요'); o.value = ''; sel.appendChild(o); }
+  sel.value = keep;
+  if (sel.selectedIndex < 0) sel.value = sel.querySelector(`optgroup[label="${profile}"] option`)?.value ?? sel.options[0].value;
+}
+function renderAlarms() {
+  const ul = $('alarms'); ul.innerHTML = '';
+  if (!alarms.length) ul.appendChild(el('li', '모닝콜이 없어요.', 'empty'));
+  for (const a of alarms) {
+    const sw = el('button', a.on ? '켜짐' : '꺼짐', 'switch' + (a.on ? ' on' : '')); sw.type = 'button';
+    sw.setAttribute('aria-pressed', a.on); sw.setAttribute('aria-label', `${a.time} 모닝콜 ${a.on ? '끄기' : '켜기'}`);
+    sw.onclick = () => alarmPost('/api/alarm/save', {...a, on: !a.on}, a.on ? '모닝콜을 껐어요' : a.time + ' 모닝콜을 켰어요');
+    const li = row(el('span', a.time, 'clock'), a.name, `${a.profile} · 볼륨 ${a.volume}`, null, sw,
+      ibtn('trash', '삭제', () => confirm(`${a.time} 모닝콜을 삭제할까요?`) && alarmPost('/api/alarm/delete', {id: a.id}, '삭제했어요')));
+    if (!a.on) li.className = 'off';
+    ul.appendChild(li);
+  }
+}
+async function alarmPost(p, body, msg) {
+  const r = await api(p, body);
+  if (r) { alarms = r; renderAlarms(); toast(msg); }
+  return r;
+}
+function addAlarm() {
+  if (!$('apl').value) return toast('먼저 플레이리스트를 저장해 주세요', true);
+  const [p, n] = JSON.parse($('apl').value), t = $('atime').value;
+  alarmPost('/api/alarm/save', {time: t, profile: p, name: n, volume: +$('avol').value}, `매일 ${t}에 '${n}' 재생`);
+}
+fetch('/api/alarms').then(r => r.json()).then(a => { alarms = a; renderAlarms(); });
 async function savePl() {
   const inp = $('plname'), n = inp.value.trim();
   if (!n) return;

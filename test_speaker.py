@@ -182,3 +182,28 @@ assert speaker.unstick_audio(5.0, 1) == (5.0, 0) and ("ao-reload",) not in calls
 state["pause"] = False; state["time-pos"] = None  # still loading
 assert speaker.unstick_audio(None, 1) == (None, 0)
 print("ok stall")
+
+# morning call: alarms validated against saved playlists, kept sorted, ring replaces the queue unmuted
+with tempfile.TemporaryDirectory() as d:
+    speaker.ALARMS = Path(d) / "alarms.json"
+    speaker.PLAYLISTS = Path(d) / "playlists.json"
+    speaker.STATE = Path(d) / "state.json"
+    speaker.edit_playlist("엄마", "아침", ["https://y/m"])
+    assert speaker.load_alarms() == []
+    speaker.edit_alarm({"time": "07:30", "profile": "엄마", "name": "아침", "volume": 140})
+    al = speaker.edit_alarm({"time": "06:05", "profile": "엄마", "name": "아침"})
+    assert [(a["id"], a["time"], a["volume"], a["on"]) for a in al] == [(2, "06:05", 50, True), (1, "07:30", 100, True)], al
+    al = speaker.edit_alarm({**al[1], "on": False})
+    assert len(al) == 2 and al[1]["on"] is False
+    for bad in [{"time": "7:30"}, {"time": "24:00"}, {"name": "없음"}, {"profile": "이모"}]:
+        try:
+            speaker.edit_alarm({"time": "07:00", "profile": "엄마", "name": "아침", **bad})
+            assert False, bad
+        except ValueError:
+            pass
+    assert [a["id"] for a in speaker.edit_alarm({"id": 2}, delete=True)] == [1]
+    calls.clear(); speaker.ring(al[1])
+    assert calls == [("set_property", "mute", False), ("set_property", "volume", 100),
+                     ("loadfile", "https://y/m", "replace"), ("set_property", "pause", False)], calls
+    assert speaker.load_state()["volume"] == 100
+print("ok alarms")

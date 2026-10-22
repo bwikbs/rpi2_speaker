@@ -3,4 +3,5 @@ __pycache__/
 state.json
 *.tmp
 playlists.json
+alarms.json
 watch_later/
